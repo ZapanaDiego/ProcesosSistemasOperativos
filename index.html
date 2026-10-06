@@ -1,0 +1,2924 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memoria Compartida POSIX · Visualizador interactivo</title>
+<style>
+:root{
+  --bg:#080b14;
+  --bg2:#0d1222;
+  --panel:#111a2e;
+  --panel2:#16203a;
+  --line:#22304f;
+  --txt:#e6ecfa;
+  --muted:#8496b8;
+  --prod:#38bdf8;
+  --cons:#f472b6;
+  --kern:#fbbf24;
+  --mem:#34d399;
+  --dang:#f87171;
+  --ok:#4ade80;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  background:
+    radial-gradient(900px 500px at 12% -10%, #16224a 0%, transparent 60%),
+    radial-gradient(800px 500px at 95% 0%, #2a1640 0%, transparent 55%),
+    var(--bg);
+  color:var(--txt);
+  line-height:1.6;
+}
+.wrap{max-width:1380px;margin:0 auto;padding:0 20px}
+code,.mono,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+/* ---------- header ---------- */
+header{padding:52px 0 26px;border-bottom:1px solid var(--line)}
+.badge{
+  display:inline-block;padding:5px 12px;border-radius:999px;font-size:12px;
+  letter-spacing:.12em;text-transform:uppercase;font-weight:700;
+  background:linear-gradient(90deg,#1d3a63,#3b1d5c);border:1px solid var(--line);color:#bcd4ff;
+}
+h1{font-size:clamp(28px,4.6vw,50px);margin:14px 0 8px;line-height:1.1;letter-spacing:-.02em}
+h1 span{background:linear-gradient(90deg,var(--prod),var(--cons));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--muted);max-width:70ch;font-size:17px}
+
+/* ---------- nav ---------- */
+nav{position:sticky;top:0;z-index:50;background:rgba(8,11,20,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;gap:4px;overflow-x:auto;padding:9px 20px}
+nav a{
+  color:var(--muted);text-decoration:none;font-size:14px;font-weight:600;
+  padding:7px 13px;border-radius:8px;white-space:nowrap;transition:.18s;
+}
+nav a:hover{background:var(--panel2);color:var(--txt)}
+
+/* ---------- sections ---------- */
+section{padding:46px 0;border-bottom:1px solid var(--line)}
+h2{font-size:26px;margin:0 0 6px;letter-spacing:-.01em;display:flex;align-items:center;gap:11px}
+h2::before{content:"";width:5px;height:26px;border-radius:3px;background:linear-gradient(var(--prod),var(--cons))}
+h3{margin:26px 0 10px;font-size:19px}
+.lead{color:var(--muted);margin:0 0 24px;max-width:78ch}
+.card{background:linear-gradient(180deg,var(--panel),#0e1626);border:1px solid var(--line);border-radius:14px;padding:20px}
+
+/* ---------- concept cards ---------- */
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:14px}
+.ct{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:17px;transition:.22s}
+.ct:hover{transform:translateY(-3px);border-color:#33507f;box-shadow:0 14px 34px -18px #000}
+.ct .ic{font-size:23px;margin-bottom:8px}
+.ct h4{margin:0 0 6px;font-size:16px}
+.ct p{margin:0;color:var(--muted);font-size:14px}
+.k-prod{color:var(--prod)}.k-cons{color:var(--cons)}.k-kern{color:var(--kern)}.k-mem{color:var(--mem)}.k-dang{color:var(--dang)}
+
+/* ---------- callouts ---------- */
+.note{border-left:3px solid var(--kern);background:#1a1509;padding:13px 16px;border-radius:0 10px 10px 0;margin:16px 0;font-size:15px}
+.note.ok{border-color:var(--ok);background:#0c1a13}
+.note.dang{border-color:var(--dang);background:#1c0e10}
+.note b{color:#fff}
+
+/* ---------- code panel ---------- */
+pre.c{
+  background:#070a12;border:1px solid var(--line);border-radius:11px;
+  padding:14px 0;overflow:auto;font-size:12.6px;line-height:1.62;margin:0;
+}
+pre.c .ln{display:block;padding:0 15px 0 0;position:relative;white-space:pre}
+pre.c .ln::before{
+  content:attr(data-n);position:absolute;left:0;width:38px;text-align:right;
+  color:#3d4d70;user-select:none;
+}
+pre.c .ln.hi{background:#12325c;box-shadow:inset 3px 0 0 var(--prod)}
+pre.c .ln.hic{background:#4a1030;box-shadow:inset 3px 0 0 var(--cons)}
+.c-com{color:#546b8f;font-style:italic}
+.c-pp{color:#c084fc}
+.c-str{color:#86efac}
+.c-kw{color:#60a5fa}
+.c-num{color:#fbbf24}
+.c-fn{color:#f0abfc;font-weight:600}
+.c-cmt{color:#3d4d70}
+
+/* ---------- buttons ---------- */
+.btn{
+  background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+  padding:8px 15px;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:.16s;display:inline-flex;align-items:center;gap:7px;
+}
+.btn:hover{background:#1e2c4c;border-color:#3a5488;transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn.p{background:linear-gradient(135deg,#0284c7,#7c3aed);border-color:#7c3aed}
+.btn.p:hover{filter:brightness(1.15)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn.sm{padding:5px 11px;font-size:12.5px;border-radius:7px}
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+
+/* ---------- sysbar ---------- */
+.sysbar{
+  display:flex;align-items:center;gap:13px;flex-wrap:wrap;
+  background:linear-gradient(90deg,#0f1729,#141033);border:1px solid var(--line);
+  border-radius:12px;padding:12px 17px;position:relative;overflow:hidden;
+}
+.sysbar::after{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:0;
+  background:linear-gradient(90deg,transparent,#fbbf2422,transparent);
+}
+.sysbar.kern{border-color:#7a5c14;box-shadow:0 0 0 1px #fbbf2422, 0 0 30px -8px #fbbf2460}
+.sysbar.kern::after{opacity:1;animation:sweep .75s ease-out}
+@keyframes sweep{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.pill{font-size:11.5px;font-weight:800;letter-spacing:.1em;padding:5px 11px;border-radius:999px;white-space:nowrap}
+.pill.user{background:#0f2a1c;color:var(--ok);border:1px solid #1d5c3a}
+.pill.kern{background:#33270a;color:var(--kern);border:1px solid #7a5c14}
+.scm{font-family:ui-monospace,monospace;font-size:15px;font-weight:700;color:var(--kern);min-width:180px}
+.sca{font-family:ui-monospace,monospace;font-size:12.5px;color:var(--muted);flex:1;min-width:200px}
+
+/* ---------- progress ---------- */
+.prog{height:5px;background:var(--panel2);border-radius:99px;overflow:hidden}
+.prog i{display:block;height:100%;background:linear-gradient(90deg,var(--prod),var(--cons));transition:width .35s ease;border-radius:99px}
+
+/* ---------- machine diagram ---------- */
+.machine{position:relative;padding:4px 0}
+.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.wire{fill:none;stroke-width:2.2;stroke-dasharray:7 6;animation:flow 1s linear infinite;opacity:.25;transition:opacity .3s}
+.wire.on{opacity:1}
+@keyframes flow{to{stroke-dashoffset:-26}}
+.procs{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.procs{grid-template-columns:1fr}}
+
+.proc{
+  background:linear-gradient(180deg,#101a2f,#0d1424);border:1px solid var(--line);
+  border-radius:14px;padding:15px;position:relative;overflow:hidden;transition:.3s;
+}
+.proc::before{content:"";position:absolute;top:0;left:0;right:0;height:3px}
+.proc.p::before{background:linear-gradient(90deg,var(--prod),transparent)}
+.proc.c::before{background:linear-gradient(90deg,var(--cons),transparent)}
+.proc.p.act{border-color:#0ea5e9;box-shadow:0 0 0 1px #0ea5e955, 0 0 46px -14px #38bdf8aa}
+.proc.c.act{border-color:#ec4899;box-shadow:0 0 0 1px #ec489955, 0 0 46px -14px #f472b6aa}
+.proc.gone{opacity:.4;filter:grayscale(.6)}
+.proc .ph{display:flex;align-items:center;gap:9px;margin-bottom:11px;flex-wrap:wrap}
+.proc .ph h4{margin:0;font-size:15.5px}
+.pid{font-family:ui-monospace,monospace;font-size:11.5px;background:#0a1220;border:1px solid var(--line);padding:2px 8px;border-radius:6px;color:var(--muted)}
+.tag{font-size:10.5px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:5px;text-transform:uppercase}
+.tag.run{background:#0d2f22;color:var(--ok)}
+.tag.dead{background:#2a1114;color:var(--dang)}
+.tag.wait{background:#33270a;color:var(--kern)}
+.tag.err{background:#3b0d12;color:#ffb4b4}
+
+.mini{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;font-size:12.5px;margin-bottom:12px}
+.mini dt{color:var(--muted)}
+.mini dd{margin:0;font-family:ui-monospace,monospace;font-size:12px;color:#cfe0ff;overflow-wrap:anywhere}
+.mini dd.none{color:#4b5c7d}
+
+/* virtual address space */
+.vas{
+  background:linear-gradient(180deg,#070b14,#0b1220);border:1px dashed #2c3e63;
+  border-radius:10px;padding:9px;font-size:12px;position:relative;
+}
+.vas .lbl{color:#5d729c;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px;font-weight:700}
+.reg{font-family:ui-monospace,monospace;font-size:11px;color:#6d84ad;margin-bottom:6px;display:flex;justify-content:space-between;gap:8px}
+.reg b{color:#9dc4ff}
+.vma{
+  background:linear-gradient(180deg,#0f2a3d,#0c1f30);border:1px solid #1d4f6b;border-radius:7px;
+  padding:8px;position:relative;min-height:52px;transition:.3s;
+}
+.proc.c .vma{background:linear-gradient(180deg,#33142a,#260f20);border-color:#6b1f45}
+.vma.empty{background:#0a0f1a;border-color:#24324f;display:flex;align-items:center;justify-content:center;color:#43536f;font-size:11.5px;font-style:italic}
+.vma .addr{font-family:ui-monospace,monospace;font-size:11px;color:#8fd7f5}
+.proc.c .vma .addr{color:#f9a8d4}
+.vma .perm{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
+.chip{font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;background:#12324a;color:#7dd3fc;border:1px solid #1d4f6b}
+.proc.c .vma .chip{background:#3d1226;color:#f9a8d4;border-color:#6b1f45}
+.caret{
+  position:absolute;top:6px;right:9px;font-family:ui-monospace,monospace;font-size:11px;
+  background:#0b2c3f;color:#67e8f9;padding:1px 7px;border-radius:5px;border:1px solid #155e75;
+  transition:.4s cubic-bezier(.34,1.56,.64,1);
+}
+.proc.c .caret{background:#3d1226;color:#f9a8d4;border-color:#831843}
+
+/* RAM */
+.ram{
+  margin-top:16px;background:linear-gradient(180deg,#0c2a20,#081d17);
+  border:1px solid #146b4d;border-radius:14px;padding:15px;position:relative;transition:.3s;
+}
+.ram.glow{border-color:var(--mem);box-shadow:0 0 0 1px #34d39933, 0 0 60px -16px #34d399cc}
+.ram.dead{background:linear-gradient(180deg,#141a26,#0c111b);border-color:#28324a}
+.ram .rh{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-bottom:12px}
+.ram .rh h4{margin:0;font-size:15px}
+.fsbadge{font-family:ui-monospace,monospace;font-size:11px;background:#0a2019;border:1px solid #146b4d;padding:3px 9px;border-radius:6px;color:#6ee7b7}
+.fsbadge.gone{background:#1c1114;border-color:#7f1d3a;color:#fda4af;text-decoration:line-through}
+.ra{font-family:ui-monospace,monospace;font-size:11.5px;color:#7dd3fc;margin-left:auto}
+
+/* ---------- bytes ---------- */
+.bytes{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(34px,1fr));gap:4px;
+  position:relative;margin-top:10px;
+}
+.cell{
+  aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:6px;
+  font-family:ui-monospace,monospace;font-size:13px;font-weight:700;position:relative;
+  background:#0a1a15;border:1px solid #16412f;color:#4b8f76;transition:.25s;
+}
+.cell.n{background:#080c14;border-color:#1d2637;color:#33415c}
+.cell.nz{background:#08221a;border-color:#1c6b50;color:#3f8f72;font-size:10px}
+.cell.w{background:linear-gradient(180deg,#0f3a2b,#0a2a1f);border-color:var(--mem);color:#a7f3d0;box-shadow:0 0 14px -4px #34d399aa}
+.cell.wrote{animation:pop .45s cubic-bezier(.34,1.56,.64,1)}
+@keyframes pop{0%{transform:scale(.3);background:#fff;color:#000}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+.cell.term{outline:2px solid var(--kern);outline-offset:1px}
+.cell.rd{background:linear-gradient(180deg,#3d1226,#260f20);border-color:var(--cons);color:#fbcfe8;box-shadow:0 0 14px -4px #f472b6aa}
+.cell.idx::after{
+  content:attr(data-i);position:absolute;bottom:-15px;left:0;right:0;text-align:center;
+  font-size:8.5px;color:#3d4d70;font-weight:400;
+}
+.cnt{font-family:ui-monospace,monospace;font-size:11.5px;color:var(--muted);margin-top:26px}
+
+/* pointer marker */
+.pmark{
+  position:absolute;top:-9px;transform:translateX(-50%);transition:.45s cubic-bezier(.34,1.56,.64,1);
+  font-family:ui-monospace,monospace;font-size:10px;font-weight:800;padding:1px 7px;border-radius:5px;
+  background:var(--prod);color:#04202b;white-space:nowrap;z-index:5;pointer-events:none;
+}
+.pmark::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--prod)}
+.pmark.c{background:var(--cons);color:#33071c}
+.pmark.c::after{border-top-color:var(--cons)}
+.pmark.hide{opacity:0}
+
+/* ---------- explain ---------- */
+.ex{background:linear-gradient(180deg,#0f182c,#0b1220);border:1px solid var(--line);border-radius:13px;padding:19px}
+.ex h4{margin:0 0 12px;font-size:19px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.stag{font-size:10.5px;font-weight:800;letter-spacing:.06em;padding:3px 9px;border-radius:5px;text-transform:uppercase}
+.stag.producer{background:#0b2d40;color:var(--prod)}
+.stag.consumidor{background:#3b1128;color:var(--cons)}
+.ex p{margin:0 0 12px;font-size:14.6px;color:#cddaf0}
+.ex .kt{
+  border-left:3px solid var(--kern);background:#1a150a;padding:11px 14px;border-radius:0 9px 9px 0;
+  font-size:14px;margin:12px 0 0;color:#f0dfb8;
+}
+.ex .kt b{color:var(--kern)}
+.ex .seq{font-family:ui-monospace,monospace;font-size:12.4px;color:#9fb6da;background:#070b14;border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin-top:13px;overflow-x:auto;white-space:pre}
+
+/* ---------- terminal ---------- */
+.term{
+  background:#06080f;border:1px solid var(--line);border-radius:11px;padding:14px;
+  font-family:ui-monospace,monospace;font-size:13px;min-height:96px;white-space:pre-wrap;
+}
+.term .l{opacity:0;animation:fi .3s forwards}
+.term .ok{color:var(--ok)}
+.term .er{color:var(--dang)}
+.term .in{color:var(--kern)}
+.term .ou{color:#7dd3fc}
+.term .dim{color:#4b5c7d}
+@keyframes fi{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;gap:6px;margin-bottom:9px}
+.tab{
+  background:transparent;border:1px solid var(--line);color:var(--muted);
+  padding:6px 13px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;
+  font-family:inherit;transition:.16s;
+}
+.tab.on{background:#12203a;color:var(--txt);border-color:#33507f}
+.tab.p.on{background:#0b2d40;color:var(--prod);border-color:#0e7490}
+.tab.c.on{background:#3b1128;color:var(--cons);border-color:#9d174d}
+
+/* ---------- race sim ---------- */
+.bars{display:flex;flex-direction:column;gap:9px;margin-top:14px}
+.bar{display:grid;grid-template-columns:190px 1fr 62px;gap:11px;align-items:center;font-size:13.5px}
+.bar .nm{display:flex;align-items:center;gap:7px}
+.bar .tr{height:22px;background:#0b1120;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.bar .fl{height:100%;width:0;border-radius:5px;transition:width .7s cubic-bezier(.22,1,.36,1)}
+.bar .pc{font-family:ui-monospace,monospace;font-size:13px;text-align:right;color:var(--muted)}
+@media(max-width:640px){.bar{grid-template-columns:120px 1fr 52px;font-size:12px}}
+
+/* ---------- table ---------- */
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:13px}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:640px}
+th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--line)}
+th{background:#0f182c;font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+tr:last-child td{border-bottom:none}
+tbody tr{transition:.15s}
+tbody tr:hover{background:#101b30}
+td code{background:#0a1220;border:1px solid var(--line);padding:2px 7px;border-radius:5px;font-size:12.5px;color:#a5d6ff}
+
+/* ---------- api ---------- */
+details{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden;transition:.2s}
+details[open]{border-color:#33507f;background:#131d33}
+summary{padding:14px 17px;cursor:pointer;font-weight:700;font-size:15.5px;list-style:none;display:flex;align-items:center;gap:11px;user-select:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"▸";color:var(--prod);transition:.22s;font-size:13px}
+details[open] summary::before{transform:rotate(90deg)}
+summary .sig{font-family:ui-monospace,monospace;font-size:12.5px;color:var(--muted);font-weight:400;margin-left:auto}
+.dbody{padding:0 17px 17px;font-size:14.6px;color:#cddaf0}
+.dbody p:first-child{margin-top:0}
+.dbody ul{margin:10px 0;padding-left:20px}
+.dbody li{margin-bottom:6px}
+.sigblk{
+  background:#070b14;border:1px solid var(--line);border-radius:9px;padding:12px 14px;
+  font-family:ui-monospace,monospace;font-size:13px;color:#a5d6ff;margin:13px 0;overflow-x:auto;white-space:pre;
+}
+
+/* ---------- cmd ---------- */
+.cmdrow{display:grid;grid-template-columns:auto 1fr;gap:10px 13px;align-items:baseline;margin-bottom:9px}
+.cmdrow code{background:#070b14;border:1px solid var(--line);padding:6px 11px;border-radius:8px;color:#86efac;font-size:13.2px;white-space:nowrap}
+.cmdrow span{color:var(--muted);font-size:14px}
+
+footer{padding:34px 0 60px;color:var(--muted);font-size:13.5px;text-align:center}
+
+.flash{animation:flash .5s}
+@keyframes flash{0%{background:#fbbf2430}100%{background:transparent}}
+
+/* ---------- responsive ---------- */
+@media(max-width:1080px){
+  #vgrid{grid-template-columns:1fr !important}
+}
+@media(max-width:560px){
+  .wrap{padding:0 14px}
+  .bytes{grid-template-columns:repeat(auto-fill,minmax(28px,1fr))}
+  .cell{font-size:11px}
+  section{padding:34px 0}
+}
+/* ══════════════════════════════════════════════════════════
+   SECCIÓN: PROCESOS / FORK / WAIT  (visualizador línea a línea)
+   ══════════════════════════════════════════════════════════ */
+:root{
+  --p0:#22d3ee; --p1:#4ade80; --p2:#a78bfa; --pl:#fbbf24;
+  --ghost:#45597c; --kernc:#fbbf24;
+}
+#procesos{padding-top:40px}
+
+.pv-top{display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin-bottom:11px}
+.pv-bar{flex:1;min-width:190px;height:7px;background:#0a101d;border:1px solid var(--line);border-radius:99px;position:relative;overflow:visible}
+.pv-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--p0),var(--p1) 42%,var(--p2) 72%,var(--pl));width:0;transition:width .3s ease;box-shadow:0 0 12px -3px var(--p0)}
+.pv-bar span{position:absolute;top:-4px;width:2px;height:15px;background:#2f4062;border-radius:2px}
+.pv-n{font-family:ui-monospace,monospace;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.pv-ph{font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;padding:4px 11px;border-radius:99px;background:#101c33;border:1px solid var(--line);color:#9fc0ea;white-space:nowrap}
+
+/* ── grid de 3 paneles ── */
+/* La columna del código necesita ~520px; los comentarios largos dan la vuelta
+   con pre-wrap, así que nunca hace falta scroll horizontal. */
+.pv-main{display:grid;grid-template-columns:minmax(0,520px) minmax(0,1fr) minmax(0,352px);gap:11px;align-items:stretch}
+@media(max-width:1350px){.pv-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media(max-width:1200px){.pv-main{grid-template-columns:1fr}}
+.pv-col{display:flex;flex-direction:column;gap:11px;min-width:0}
+
+.pnl{background:linear-gradient(180deg,#0e1728,#0a1120);border:1px solid var(--line);border-radius:13px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.pnl-h{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);flex:0 0 auto;background:#0c1424}
+.pnl-h .d{width:6px;height:6px;border-radius:50%;background:var(--p0);box-shadow:0 0 9px currentColor;flex:0 0 auto}
+.pnl-h .sp{margin-left:auto;font-weight:600;letter-spacing:.02em;text-transform:none;font-size:11px;color:#5f7599}
+.pnl-b{padding:11px;flex:1;min-width:0;overflow:auto}
+.pnl.grow{flex:1}
+
+/* ── panel de código ── */
+.pv-code .pnl-b{padding:0;overflow:auto;max-height:600px}
+.pv-code pre{margin:0;background:transparent;font-size:11.8px;line-height:1.5}
+/* padding-left deja libre la canaleta del número de línea; pre-wrap hace que
+   los comentarios largos den la vuelta en vez de abrir scroll horizontal. */
+.pv-code .ln{display:block;padding:1px 9px 1px 37px;position:relative;white-space:pre-wrap;
+  overflow-wrap:break-word;color:#8fa6c8;border-left:2px solid transparent}
+.pv-code .ln::before{content:attr(data-n);position:absolute;left:0;top:1px;width:31px;text-align:right;
+  color:#33425e;user-select:none;font-size:10.5px}
+.pv-code .ln.on{background:#0e3a4d;color:#d8f6ff;border-left-color:var(--p0);box-shadow:0 0 20px -8px var(--p0)}
+.pv-code .ln.onc{background:#3a1348;color:#f6dcff;border-left-color:var(--p2);box-shadow:0 0 20px -8px var(--p2)}
+.pv-code .ln.onp{background:#0f3a2a;color:#dcffe9;border-left-color:var(--p1);box-shadow:0 0 20px -8px var(--p1)}
+.pv-code .ln.onl{background:#3a2405;color:#ffe9c2;border-left-color:var(--pl);box-shadow:0 0 20px -8px var(--pl)}
+.pv-code .ln.fn{color:#c3d6f2}
+.pv-code pre{position:relative}
+.pv-code .ln{scroll-margin-top:90px}
+
+/* ── escenario ── */
+.scn{position:relative;min-height:210px;display:grid;gap:10px;grid-template-rows:auto 1fr;padding:4px 2px}
+.scn svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:0}
+.fk{stroke:#25375a;fill:none;stroke-width:1.6;stroke-dasharray:5 5;opacity:.55;animation:flowdash 1.1s linear infinite}
+@keyframes flowdash{to{stroke-dashoffset:-22}}
+/* filas del bosque */
+.frows{display:flex;flex-direction:column;gap:7px;position:relative;z-index:1}
+.frow{display:flex;gap:9px;align-items:flex-start;min-height:56px}
+.frow .rl{font-family:ui-monospace,monospace;font-size:9.5px;color:#3d4f70;width:30px;flex:0 0 auto;padding-top:12px;text-align:right;letter-spacing:.02em}
+.frow .rc{display:flex;gap:7px;flex-wrap:wrap;flex:1;padding-top:3px;min-height:46px}
+
+/* ── caja de proceso ── */
+.pbox{
+  position:relative;min-width:74px;padding:6px 9px 7px;border-radius:9px;
+  background:linear-gradient(180deg,#111d33,#0c1526);border:1px solid #25375a;
+  font-size:11.5px;cursor:default;transition:transform .3s,box-shadow .3s,opacity .35s,border-color .3s;
+}
+.pbox .pn{font-family:ui-monospace,monospace;font-weight:800;font-size:11.5px;letter-spacing:.01em;display:flex;align-items:center;gap:5px}
+.pbox .pl{font-family:ui-monospace,monospace;font-size:9px;color:#6c86ad;margin-top:2px}
+.pbox .pb2{font-size:8.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;margin-top:3px;display:inline-block;padding:1px 5px;border-radius:4px}
+.pbox.c0{border-color:#0e7490;color:var(--p0)}
+.pbox.c0 .pb2{background:#083344;color:#67e8f9}
+.pbox.c1{border-color:#15803d;color:var(--p1)}
+.pbox.c1 .pb2{background:#0a2e1c;color:#86efac}
+.pbox.c2{border-color:#6d28d9;color:var(--p2)}
+.pbox.c2 .pb2{background:#2a1060;color:#c4b5fd}
+.pbox.c3{border-color:#b45309;color:var(--pl)}
+.pbox.c3 .pb2{background:#3a1f05;color:#fcd34d}
+.pbox.sR{box-shadow:0 0 0 2px currentColor,0 0 30px -6px currentColor}
+.pbox.sS{border-style:dashed;opacity:.92;filter:saturate(.55)}
+.pbox.sS .pb2{background:#0b1220!important;color:#93a7c7!important}
+.pbox.sZ{border-color:#475569!important;color:#7c8db0!important;background:linear-gradient(180deg,#161c28,#10151f);opacity:.7}
+.pbox.sZ .pb2{background:#232b3a!important;color:#8fa0bd!important}
+.pbox.sX{opacity:.16;filter:saturate(.25)}
+.pbox.sB{border-style:dashed;opacity:.92}
+.pbox.sD{opacity:.16;filter:saturate(.25)}
+.pbox.gh{opacity:.3;border-style:dotted;min-width:0}
+.pbox.gh .pl{display:none}
+
+/* Las animaciones de EVENTO necesitan ganarle a .pbox.sR, que es permanente.
+   Subir la especificidad a .pbox.pbox.X las pone por encima sin !important. */
+.pbox.pbox.newborn{animation:newborn .5s cubic-bezier(.34,1.56,.64,1)}
+.pbox.pbox.detach{animation:detach .42s ease-out}
+.pbox.pbox.zing{animation:zcollapse .46s cubic-bezier(.5,0,.75,0) forwards}
+.pbox.pbox.reaped{animation:suction .52s cubic-bezier(.6,0,.9,.4) forwards;pointer-events:none}
+.pbox.pbox.race{animation:shake .4s ease-in-out}
+
+/* el puntito del proceso que está en CPU */
+.schedmark{color:currentColor;animation:schedblink .55s steps(1) infinite;font-weight:900}
+@keyframes schedblink{0%,49%{opacity:1}50%,100%{opacity:.12}}
+
+/* ── panel de memoria ── */
+.mem{display:flex;flex-direction:column;gap:0;font-family:ui-monospace,monospace;font-size:10.5px}
+.mrow{display:flex;align-items:center;gap:8px;padding:3.5px 9px;border:1px solid transparent;position:relative;transition:.35s}
+.mrow.a{background:#0b1424;border-color:#1d2c48}
+.mrow.hi{background:#0d2b3a;border-color:#0e7490;color:#a5f3fc}
+.mrow .ma{color:#5d729c;width:60px;flex:0 0 auto}
+.mrow .mv{color:#cbe4ff;overflow-wrap:anywhere}
+.mrow .mv.a{color:#fbbf24}
+.mrow .mv.p{color:#67e8f9}
+.memseg{border:1px solid #1e2c47;border-top:none;padding:4px 9px;color:#44587c;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:7px}
+.memseg:first-child{border-top:1px solid #1e2c47;border-radius:7px 7px 0 0}
+.memseg:last-child{border-radius:0 0 7px 7px;border-bottom:1px solid #1e2c47}
+.memseg .sp{margin-left:auto;text-transform:none;letter-spacing:0;font-size:9px}
+.cow{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:800;padding:1px 6px;border-radius:4px;background:#2b1f05;color:#fbbf24;border:1px solid #78590b}
+.cow.spread{background:#0b2c3f;color:#7dd3fc;border-color:#155e75}
+.regs{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:5px;margin-top:9px}
+.reg{border:1px solid #1d2c48;background:#0a1220;border-radius:7px;padding:4px 7px}
+.reg b{display:block;font-size:8.5px;color:#54688c;letter-spacing:.08em;font-weight:800}
+.reg span{font-size:10.5px;color:#9fe8f5}
+.reg.now{border-color:#0e7490;background:#082430}
+.reg.now span{color:#67e8f9}
+
+/* ── kernel ── */
+/* la tabla de tareas entra en su columna sin scroll horizontal.
+   min-width:0 anula el `table{min-width:640px}` global de la sección anterior. */
+.kt{table-layout:fixed;width:100%;min-width:0;border-collapse:collapse;font-family:ui-monospace,monospace;font-size:10px}
+.kt th{font-size:8.5px;letter-spacing:.05em;color:#5c7095;text-transform:uppercase;padding:0 3px 5px;text-align:left;font-weight:800;border-bottom:1px solid var(--line);overflow:hidden}
+.kt td{padding:2.5px 3px;border-bottom:1px solid #131e33;color:#9db4d6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kt col.c1{width:44px}.kt col.c2{width:50px}.kt col.c3{width:22px}.kt col.c5{width:74px}
+.kt tr.me td{background:#0c2130;color:#a5f3fc}
+.kt tr.z td{color:#7c8db0}
+.kt .st{font-weight:800}
+.kt .st.R{color:var(--ok)}.kt .st.S{color:var(--kern)}
+.kt .st.Z{color:#94a3b8}.kt .st.T{color:#64748b}
+.sycfx{position:relative;height:74px;margin-top:10px;border-radius:9px;overflow:hidden;border:1px solid #1d2c48;background:#080d18}
+.syb{position:absolute;left:0;width:58px;height:50%;display:flex;align-items:center;padding-left:9px;font-size:8px;font-weight:800;letter-spacing:.08em;color:#5f7599}
+.syb.u{top:0;border-bottom:1px dashed #2b3a5c}
+.syb.k{bottom:0;background:#0e0c05;color:#a08c4e}
+.syline{position:absolute;left:0;right:0;top:50%;height:0;border-top:1px solid #3b3a20;z-index:0}
+.syit{position:absolute;left:66px;right:8px;height:33px;display:flex;align-items:center;gap:6px;font-family:ui-monospace,monospace;font-size:10px;border-radius:6px;white-space:nowrap;overflow:hidden}
+.syit.u{top:2px;color:#9fe8f5;background:transparent}
+.syit.k{bottom:2px;color:#fbbf24;background:transparent}
+.syit span{overflow:hidden;text-overflow:ellipsis}
+.syit .ar{margin-left:auto;flex:0 0 auto;font-size:8.5px;color:#3f5170}
+
+/* ── salida / buffers / gantt ── */
+.tape{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:34px;padding:4px 0}
+.tok{
+  font-family:ui-monospace,monospace;font-size:12px;font-weight:700;padding:3px 9px;border-radius:6px;
+  background:linear-gradient(180deg,#0f3a2b,#0a2a20);border:1px solid #34d399;color:#a7f3d0;
+  box-shadow:0 0 16px -6px #34d399cc;white-space:pre;
+}
+.bufs{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.buf{border:1px solid #1d2c48;background:#080d18;border-radius:7px;padding:3px 7px;font-family:ui-monospace,monospace;font-size:10px;color:#7d93b8;min-width:52px}
+.buf b{color:#54688c;font-size:8.5px;letter-spacing:.06em;display:block;font-weight:800}
+.buf.has{border-color:#b45309;color:#fcd34d}
+.buf.has b{color:#b45309}
+
+.gantt{display:flex;flex-direction:column;gap:2px;font-family:ui-monospace,monospace;font-size:9.5px}
+.gr{display:flex;align-items:center;gap:7px;height:15px}
+.gr .gname{width:42px;color:#54688c;flex:0 0 auto;text-align:right;font-size:9px}
+.gr .gtrack{flex:1;position:relative;height:11px;background:#0a101d;border-radius:3px;overflow:hidden}
+.gr .gbar{position:absolute;top:0;bottom:0;border-radius:3px;width:0;transition:width .32s ease,left .32s ease;opacity:.9}
+.gr .gz{position:absolute;top:0;bottom:0;width:4px;background:repeating-linear-gradient(45deg,#64748b 0 2px,#334155 2px 4px);opacity:.85}
+
+/* ── controles ── */
+.pv-ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:11px}
+.tgl{font-family:ui-monospace,monospace;font-size:11px;padding:5px 10px;border-radius:8px;cursor:pointer;user-select:none;border:1px solid var(--line);background:#101a2d;color:var(--muted);transition:.16s}
+.tgl:hover{border-color:#3a5488;color:var(--txt)}
+.tgl.on{background:#0e3a4d;border-color:#0e7490;color:#67e8f9;box-shadow:0 0 16px -6px var(--p0)}
+.fx{font-family:ui-monospace,monospace;font-size:11.5px;padding:7px 12px;border-radius:8px;background:#080d18;border:1px solid #1d2c48;color:#8fd7f5;min-height:32px;display:flex;align-items:center;gap:7px}
+.fx .k{color:#3f5170}
+.fx.new{animation:fxin .45s}
+@keyframes fxin{0%{background:#0e3a4d;border-color:#0e7490;transform:translateX(-5px)}100%{transform:none}}
+.fx.warn{color:#fcd34d;border-color:#b45309;background:#221703}
+
+@media(max-width:700px){
+  .pv-main{gap:9px}
+  .pv-code pre{font-size:11px}
+  .frow .rl{display:none}
+}
+/* ══════ ANIMACIONES: PROCESOS ══════ */
+
+/* 1 · proceso recién nacido: flash de identidad */
+@keyframes newborn{
+  0%{transform:scale(.2) translateY(-14px);opacity:0;box-shadow:0 0 0 0 currentColor}
+  55%{transform:scale(1.12) translateY(0);opacity:1;box-shadow:0 0 0 5px transparent}
+  100%{transform:scale(1);opacity:1}
+}
+.pbox.newborn{animation:newborn .5s cubic-bezier(.34,1.56,.64,1)}
+
+/* 2 · el clon se desprende del padre */
+@keyframes detach{
+  0%{transform:scale(1) translate(0,0);opacity:1;filter:brightness(1)}
+  40%{transform:scale(.94) translateY(-4px);opacity:.85;filter:brightness(2.2)}
+  100%{transform:scale(1) translate(0,0);opacity:1;filter:brightness(1)}
+}
+.pbox.detach{animation:detach .42s ease-out}
+
+/* 3 · foco: pulso del proceso que tiene la CPU */
+@keyframes cpupulse{
+  0%,100%{box-shadow:0 0 0 1.5px currentColor,0 0 26px -6px currentColor}
+  50%{box-shadow:0 0 0 3px currentColor,0 0 44px -2px currentColor}
+}
+.pbox.sR{animation:cpupulse 1.25s ease-in-out infinite}
+
+/* 4 · colapso a zombi */
+@keyframes zcollapse{
+  0%{transform:scale(1) translateY(0);opacity:1}
+  65%{transform:scale(.55,1.5) translateY(2px);opacity:.9}
+  100%{transform:scale(.42,.52) translateY(4px);opacity:.62}
+}
+.pbox.zing{animation:zcollapse .46s cubic-bezier(.5,0,.75,0) forwards}
+
+/* 5 · la Z sube flotando */
+@keyframes zfloat{
+  0%{transform:translate(0,0) scale(.4);opacity:0}
+  25%{opacity:.95}
+  100%{transform:translate(6px,-26px) scale(1.15);opacity:0}
+}
+.zghost{position:absolute;left:50%;top:-4px;transform:translateX(-50%);font-size:15px;font-weight:800;color:#94a3b8;pointer-events:none;animation:zfloat 1.5s ease-out forwards;z-index:6}
+
+/* 6 · aro de espera girando */
+@keyframes waitspin{to{transform:rotate(360deg)}}
+.wring{
+  position:absolute;inset:-6px;border-radius:11px;pointer-events:none;
+  border:1.5px dashed transparent;border-top-color:var(--kernc);
+  border-right-color:var(--kernc);opacity:.85;
+  animation:waitspin 1.05s linear infinite;
+}
+.wring span{
+  position:absolute;left:50%;bottom:-15px;transform:translateX(-50%);
+  font-family:ui-monospace,monospace;font-size:8.5px;font-weight:800;
+  letter-spacing:.08em;color:var(--kernc);background:#1b1405;padding:0 5px;border-radius:3px;white-space:nowrap;
+}
+
+/* 7 · succión: el padre absorbe el zombi al reapear */
+@keyframes suction{
+  0%{transform:scale(.42,.52) translate(0,0);opacity:.62}
+  70%{transform:scale(.85,.85) translateY(-3px);opacity:.5;filter:brightness(1.8)}
+  100%{transform:scale(.1,.1) translateY(-12px);opacity:0;filter:brightness(3)}
+}
+.pbox.reaped{animation:suction .52s cubic-bezier(.6,0,.9,.4) forwards;pointer-events:none}
+
+/* 8 · token entrando al buffer de stdio */
+@keyframes flyin{
+  0%{transform:scale(.4) translate(0,0);opacity:0}
+  30%{opacity:1}
+  100%{transform:scale(1) translate(0,0);opacity:1}
+}
+.tok.inb{animation:flyin .38s cubic-bezier(.34,1.56,.64,1)}
+
+/* 9 · volcado del buffer a la cinta de salida */
+@keyframes dump{
+  0%{transform:scale(.5) translateY(16px);opacity:0;filter:brightness(2.4)}
+  100%{transform:scale(1) translateY(0);opacity:1;filter:brightness(1)}
+}
+.tok.out{animation:dump .42s cubic-bezier(.2,.9,.3,1.2)}
+
+/* 10 · el TRAP cruza la frontera */
+@keyframes trapx{
+  0%{transform:translateY(-16px);opacity:0}
+  30%{opacity:1}
+  100%{transform:translateY(20px);opacity:0}
+}
+.syit.trap::after{
+  content:"";position:absolute;left:50%;width:2px;height:20px;
+  background:linear-gradient(var(--kernc),transparent);border-radius:2px;
+  animation:trapx .62s ease-in-out infinite;
+}
+.sycfx.hit{border-color:var(--kern);box-shadow:0 0 0 1px #fbbf2455,0 0 30px -10px #fbbf24}
+@keyframes borderflash{
+  0%{border-color:var(--kern);box-shadow:inset 0 0 40px -14px var(--kern)}
+  100%{border-color:var(--kern);box-shadow:inset 0 0 0 0 transparent}
+}
+.sycfx.flash{animation:borderflash .6s ease-out}
+
+/* 11 · el scheduler salta entre procesos listos */
+@keyframes hop{
+  0%{transform:translateY(9px) scale(.5);opacity:0}
+  55%{transform:translateY(-4px) scale(1.14);opacity:1}
+  100%{transform:translateY(0) scale(1);opacity:1}
+}
+.sched{position:absolute;z-index:7;font-size:13px;pointer-events:none;
+  animation:hop .34s cubic-bezier(.34,1.56,.64,1);
+  filter:drop-shadow(0 0 7px #fbbf24)}
+
+/* 12 · vínculo COW: late mientras la página está compartida */
+@keyframes cowpulse{
+  0%,100%{stroke-dashoffset:0;opacity:.5}
+  50%{stroke-dashoffset:-16;opacity:1}
+}
+.cowlink{stroke:var(--kern);stroke-width:2;fill:none;stroke-dasharray:4 5;
+  animation:cowpulse 1.5s ease-in-out infinite}
+.cowlink.spread{stroke:#7dd3fc}
+
+/* 13 · el RIP recorre el código */
+/* barra del RIP: una sola línea de alto (el line-height del pre es 18.3px) */
+.rip{position:absolute;left:-3px;top:0;width:3px;height:19px;border-radius:2px;
+  background:var(--p0);box-shadow:0 0 10px var(--p0);opacity:0;
+  transition:transform .34s cubic-bezier(.34,1.3,.64,1),opacity .3s}
+.rip.on{opacity:1}
+.rip.c1{background:var(--p1);box-shadow:0 0 10px var(--p1)}
+.rip.c2{background:var(--p2);box-shadow:0 0 10px var(--p2)}
+.rip.c3{background:var(--pl);box-shadow:0 0 10px var(--pl)}
+
+/* 14 · variables que aparecen en el stack */
+@keyframes pushvar{
+  0%{transform:translateX(16px);opacity:0;background:#0e7490}
+  100%{transform:translateX(0);opacity:1;background:transparent}
+}
+.mrow.push{animation:pushvar .42s cubic-bezier(.22,1,.36,1)}
+
+/* 15 · fila de la tabla de tareas que entra / sale */
+@keyframes rowin{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+@keyframes rowout{from{opacity:1}to{opacity:0;transform:translateX(14px);filter:blur(2px)}}
+.kt tr.in{animation:rowin .34s ease-out}
+.kt tr.out{animation:rowout .42s ease-in forwards}
+
+/* 16 · barra del gantt que nace */
+@keyframes gbar{
+  0%{transform:scaleX(.02);transform-origin:left;opacity:0}
+  100%{transform:scaleX(1);opacity:.9}
+}
+.gr .gbar.in{animation:gbar .34s cubic-bezier(.2,.9,.3,1)}
+
+/* 17 · aviso de nondeterminismo */
+@keyframes shake{10%,90%{transform:translateX(-1px)}30%,70%{transform:translateX(2px)}50%{transform:translateX(-2px)}}
+.pbox.race{animation:shake .4s ease-in-out}
+
+/* 18 · token de la cinta cuando el orden salió raro */
+.tok.scram{border-color:#f87171;color:#fecaca;box-shadow:0 0 16px -6px #f87171}
+
+/* 19 · foco suave siguiendo al proceso activo */
+.pbox::after{content:"";position:absolute;inset:0;border-radius:9px;pointer-events:none;
+  background:radial-gradient(120% 120% at 50% 0%,currentColor,transparent 65%);
+  opacity:0;transition:opacity .35s;mix-blend-mode:screen}
+.pbox.sR::after{opacity:.11}
+
+/* si el sistema pide menos movimiento, se apagan los pulsos infinitos
+   (cpupulse, waitspin, schedblink…) y quedan sólo los cambios de estado */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms!important;animation-delay:0s!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;transition-delay:0s!important;
+    scroll-behavior:auto!important;
+  }
+}
+</style>
+
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <span class="badge">IPC · POSIX Shared Memory</span>
+    <h1>Memoria compartida entre <span>dos procesos</span></h1>
+    <p class="sub">Visualizador paso a paso de <code>producer.c</code> y <code>consumidor.c</code>: qué syscall se ejecuta, qué hace el kernel, cómo se mapea la memoria y por qué un proceso puede ver lo que escribió el otro.</p>
+  </div>
+</header>
+
+<nav>
+  <div class="wrap">
+    <a href="#concepto">Concepto</a>
+    <a href="#visualizador">Visualizador</a>
+    <a href="#carrera">Carrera de datos</a>
+    <a href="#api">Cada syscall</a>
+    <a href="#tabla">Tabla</a>
+    <a href="#problemas">Problemas</a>
+    <a href="#correr">Ejecutarlo</a>
+    <a href="#procesos">Procesos: fork/wait</a>
+  </div>
+</nav>
+
+<main class="wrap">
+<!-- ═══════════════ CONCEPTO ═══════════════ -->
+<section id="concepto">
+  <h2>El concepto en 60 segundos</h2>
+  <p class="lead">La memoria compartida POSIX es la forma más rápida de comunicar procesos porque <b>no copia datos</b>: ambos procesos.Acceden a la <b>misma página física de RAM</b>. Cuando el productor escribe, el consumidor lo ve al instante.</p>
+
+  <div class="grid3">
+    <div class="ct">
+      <div class="ic">📦</div>
+      <h4><span class="k-prod">producer.c</span> — el escritor</h4>
+      <p>Crea el objeto de memoria compartida, le reserva 4096 bytes, lo mapea en su propio espacio de direcciones y escribe las cadenas <code>"Hello"</code> y <code>"World!"</code> dentro.</p>
+    </div>
+    <div class="ct">
+      <div class="ic">📖</div>
+      <h4><span class="k-cons">consumidor.c</span> — el lector</h4>
+      <p>Abre el mismo objeto <b>solo lectura</b>, lo mapea, imprime lo que encuentra y finalmente destruye el objeto con <code>shm_unlink</code>.</p>
+    </div>
+    <div class="ct">
+      <div class="ic">⚡</div>
+      <h4>El tradeoff</h4>
+      <p>Cero overhead de copia, pero <b>sin sincronización gratis</b>: si los dos tocan la memoria a la vez, tenés una carrera de datos.</p>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:22px">
+    <b>Anatomía mental:</b> <code>shm_open</code> crea un <i>archivo especial</i> en <code>/dev/shm/</code> (RAM disfrazada de filesystem). <code>mmap</code> genera un <i>mapeo</i>: un rango de direcciones virtuales de tu proceso conectado a ese archivo. Mapeás el archivo → las dos partes comparten la misma página física.
+  </div>
+
+  <h3>El <code>mmap</code> en una imagen</h3>
+  <div class="card">
+<pre class="c mono" style="font-size:13.4px;line-height:1.85;color:#cfe0ff">ptr = mmap(  0,              <span class="c-cmt">// dirección 0 = "elegí la que quieras"</span>
+              4096,            <span class="c-cmt">// longitud en bytes</span>
+              PROT_WRITE,      <span class="c-cmt">// permisos: solo escritura</span>
+              MAP_SHARED,      <span class="c-cmt">// los cambios van al objeto compartido</span>
+              fd,              <span class="c-cmt">// el descriptor que devolvió shm_open</span>
+              0 );             <span class="c-cmt">// offset dentro del objeto</span></pre>
+    <p style="margin:14px 0 0;color:var(--muted);font-size:14.5px">El argumento que más importa es <code style="color:#f0abfc">MAP_SHARED</code>. Si puseras <code style="color:#f0abfc">MAP_PRIVATE</code>, el kernel haría <i>copy-on-write</i>: el consumidor leería una copia paralela y <b>jamás vería</b> lo que escribió el productor.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ VISUALIZADOR ═══════════════ -->
+<section id="visualizador">
+  <h2>Visualizador de ejecución</h2>
+  <p class="lead">Recorré los 14 pasos que ocurren cuando compilas y ejecutás los dos programas. Cada paso muestra el modo de ejecución, la llamada al sistema, el estado de la memoria y qué hace el kernel por dentro.</p>
+
+  <div class="row" style="margin-bottom:14px">
+    <button class="btn p" id="play">▶ Reproducir</button>
+    <button class="btn" id="prev">◀ Anterior</button>
+    <button class="btn" id="next">Siguiente ▶</button>
+    <button class="btn" id="reset">↺ Reiniciar</button>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted);margin-left:6px">
+      velocidad
+      <input type="range" id="speed" min="300" max="2600" value="1500" style="accent-color:#38bdf8;width:110px">
+    </label>
+    <span style="font-family:ui-monospace,monospace;font-size:13px;color:var(--muted);margin-left:auto" id="counter">1 / 14</span>
+  </div>
+  <div class="prog" style="margin-bottom:16px"><i id="bar" style="width:7%"></i></div>
+
+  <div class="sysbar" id="sysbar">
+    <span class="pill user" id="pill">USER MODE</span>
+    <span class="scm" id="scm">— sin syscall —</span>
+    <span class="sca" id="sca"></span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.28fr 1fr;gap:16px;margin-top:16px" id="vgrid">
+    <!-- izquierda: diagrama -->
+    <div>
+      <div class="machine" id="machine">
+        <svg class="wires" id="wires"><path class="wire" id="wireP" stroke="#38bdf8"></path><path class="wire" id="wireC" stroke="#f472b6"></path></svg>
+        <div class="procs">
+          <!-- PRODUCTOR -->
+          <div class="proc p" id="procP">
+            <div class="ph">
+              <h4>producer.c</h4>
+              <span class="pid" id="pidP">pid 1000</span>
+              <span class="tag wait" id="tagP">inactivo</span>
+            </div>
+            <dl class="mini">
+              <dt>fd</dt><dd class="none" id="fdP">—</dd>
+              <dt>ptr</dt><dd class="none" id="ptrP">NULL</dd>
+            </dl>
+            <div class="vas">
+              <div class="lbl">espacio virtual de direcciones</div>
+              <div class="reg"><span>stack</span><span>0x7fff…</span></div>
+              <div class="reg"><span>heap</span><span>0x55a0…</span></div>
+              <div class="vma empty" id="vmaP">sin regiones mapeadas</div>
+            </div>
+          </div>
+          <!-- CONSUMIDOR -->
+          <div class="proc c gone" id="procC">
+            <div class="ph">
+              <h4>consumidor.c</h4>
+              <span class="pid">pid 1001</span>
+              <span class="tag dead" id="tagC">no existe</span>
+            </div>
+            <dl class="mini">
+              <dt>fd</dt><dd class="none" id="fdC">—</dd>
+              <dt>ptr</dt><dd class="none" id="ptrC">NULL</dd>
+            </dl>
+            <div class="vas">
+              <div class="lbl">espacio virtual de direcciones</div>
+              <div class="reg"><span>stack</span><span>0x7fff…</span></div>
+              <div class="reg"><span>heap</span><span>0x55a0…</span></div>
+              <div class="vma empty" id="vmaC">sin regiones mapeadas</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RAM COMPARTIDA -->
+        <div class="ram" id="ram">
+          <div class="rh">
+            <h4>RAM física compartida</h4>
+            <span class="fsbadge gone" id="fsbadge">/dev/shm/OS</span>
+            <span class="tag dead" id="tagShm">sin objeto</span>
+            <span class="ra" id="ramsize"></span>
+          </div>
+          <div style="font-size:12px;color:#5f7a6d;font-family:ui-monospace,monospace">offset →</div>
+          <div class="bytes" id="bytes"></div>
+          <div class="cnt" id="cnt"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- derecha: código + explicación -->
+    <div>
+      <div class="tabs" style="margin-bottom:10px">
+        <button class="tab p on" data-tab="p">producer.c</button>
+        <button class="tab c" data-tab="c">consumidor.c</button>
+      </div>
+      <div style="max-height:330px;overflow:auto;border-radius:11px"><pre class="c" id="code"></pre></div>
+
+      <div class="ex" id="ex" style="margin-top:16px">
+        <h4><span class="stag producer" id="exWho">producer</span><span id="exTitle"></span></h4>
+        <p id="exUser"></p>
+        <div class="kt" id="exKern"></div>
+        <div class="seq" id="exSeq"></div>
+      </div>
+
+      <div class="term" id="term" style="margin-top:16px"></div>
+    </div>
+  </div>
+
+  <div class="note dang" style="margin-top:18px">
+    <b>Lo que este visualizador no muestra:</b> la sincronización. En el código real no hay ningún semáforo ni lock, así que el consumidor <i>puede</i> leerse antes de que el productor escriba. Abajo, en <a href="#carrera" style="color:var(--dang)">Carrera de datos</a>, simulamos qué pasa.
+  </div>
+</section>
+<!-- ═══════════════ CARRERA ═══════════════ -->
+<section id="carrera">
+  <h2>Carrera de datos: el bug invisible</h2>
+  <p class="lead">El productor tarda unos microsegundos entre crear el objeto y escribir. Si el consumidor arranca durante esa ventana, lee memoria vacía o partially written. Vamos a medir cuán seguido pasa.</p>
+
+  <div class="card">
+    <h4 style="margin:0 0 6px;font-size:16px">Simulador Monte Carlo · 2000 corridas</h4>
+    <p style="margin:0 0 4px;color:var(--muted);font-size:14px">Modelo: el productor crea el objeto en t≈0.2 ms, escribe <code>"Hello"</code> en t≈1.0 ms y <code>"World!"</code> en t≈2.0 ms. El consumidor arranca en un instante aleatorio uniforme entre 0 y 4 ms.</p>
+    <div class="row" style="margin:16px 0 4px">
+      <button class="btn p" id="simrun">▶ Simular</button>
+      <button class="btn" id="simclean">Limpiar</button>
+    </div>
+    <div class="bars" id="bars"></div>
+    <div id="simsum" style="margin-top:18px"></div>
+  </div>
+
+  <div class="grid3" style="margin-top:16px">
+    <div class="note dang" style="margin:0">
+      <b>❌ Lo que pasa ahora</b><br>
+      Sin barreras, el resultado es no determinista. En una Shell parece "siempre funciona" porque el productor arranca antes — eso es <b>azar de arranque</b>, no corrección.
+    </div>
+    <div class="note ok" style="margin:0">
+      <b>✅ La solución clásica</b><br>
+      Un <code>sem_t</code> POSIX. El productor hace <code>sem_post</code> al terminar de escribir; el consumidor hace <code>sem_wait</code> antes de leer.
+    </div>
+    <div class="note" style="margin:0">
+      <b>⚠️ La trampa</b><br>
+      Si compartís el semáforo dentro de la <i>misma</i> memoria compartida, protegés el semáforo con la memoria que el semáforo protege. Va en un objeto aparte.
+    </div>
+  </div>
+
+  <h3>Parche con semáforo</h3>
+  <div class="card" style="padding:0;overflow:hidden"><pre class="c" id="codeSem"></pre></div>
+</section>
+
+<!-- ═══════════════ API ═══════════════ -->
+<section id="api">
+  <h2>Qué hace exactamente cada llamada</h2>
+  <p class="lead">Las cinco funciones que aparecen en el código, explicadas con su firma, su efecto real en el kernel y sus errores típicos.</p>
+
+  <details open>
+    <summary>1 · <code>shm_open</code> <span class="sig">int shm_open(const char *name, int oflag, mode_t mode)</span></summary>
+    <div class="dbody">
+      <p>Es un <code>open(2)</code> para objetos de memoria compartida. Bajo el hood es el mismo archivo que tenés en <code>/dev/shm</code> (tmpfs: un filesystem que vive en RAM).</p>
+      <div class="sigblk">fd = shm_open( "OS",             // nombre, se prefija con /
+             O_CREAT | O_RDWR,  // flags
+             0666 );           // permisos, solo si crea</div>
+      <ul>
+        <li><b><code>O_CREAT</code></b> — crea el objeto si no existe. Es lo que usa el <span class="k-prod">productor</span>. Devuelve el error <code>EEXIST</code> si ya existía… salvo que sumes <code>O_EXCL</code>.</li>
+        <li><b><code>O_EXCL</code></b> — usado junto a <code>O_CREAT</code>, obliga a fallar si ya existe. Evita que otro proceso pise los datos.</li>
+        <li><b><code>O_RDWR</code></b> — el productor necesita leer y escribir en el mapeo.</li>
+        <li><b><code>O_RDONLY</code></b> — el consumidor mapea <code>PROT_READ</code>, así que solo necesita lectura.</li>
+        <li><b><code>mode</code></b> (0666) solo se aplica en la creación. <code>0666</code> es un <i>error</i> tipográfico: <code>&amp;</code> ejecutalo con <code>umask</code>.</li>
+      </ul>
+      <div class="note dang"><b>Error clave:</b> si el consumidor corre antes que el productor y usa <code>O_CREAT</code>, crearía un objeto <b>vacío</b> y leería basura. Por eso el consumidor usa <code>O_RDONLY</code> sin <code>O_CREAT</code> → falla con <code>ENOENT</code> y el <code>perror</code> avisa.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary>2 · <code>ftruncate</code> <span class="sig">int ftruncate(int fd, off_t length)</span></summary>
+    <div class="dbody">
+      <p>Fija el tamaño del objeto. <b>Obligatorio</b>, y es el paso que casi todo el mundo olvida.</p>
+      <div class="sigblk">ftruncate( fd, 4096 );   // 1 página exacta de memoria</div>
+      <ul>
+        <li>Un objeto recién creado con <code>shm_open</code> mide <b>0 bytes</b>.</li>
+        <li><code>mmap</code> con longitud 0 falla con <code>EINVAL</code>. No podés mapear cero bytes.</li>
+        <li>Al extender a 4096 bytes el kernel reserva <b>una página</b> real, y esa página entra <b>ceroizada</b>.</li>
+      </ul>
+      <div class="note ok"><b>Consecuencia directa:</b> como las páginas nacen en cero, el byte 11 de nuestro bloque es un <code>\0</code>. Eso es <i>lo único</i> que hace que el <code>printf("%s")</code> del consumidor termine la cadena en algún lado. El productor nunca escribe un terminador — funciona por casualidad.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary>3 · <code>mmap</code> <span class="sig">void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)</span></summary>
+    <div class="dbody">
+      <p>El corazón de la práctica. Crea un <b>VMA</b> (Virtual Memory Area) en el proceso: un rango de direcciones virtuales asociado al objeto.</p>
+      <div class="sigblk">ptr = mmap( 0,            // NULL = el kernel elige dirección
+              4096,           // longitud
+              PROT_WRITE,     // protección: PROT_READ|WRITE|EXEC|NONE
+              MAP_SHARED,     // ¿compartido o copia privada?
+              fd, 0 );        // fd y offset</div>
+      <ul>
+        <li><b><code>PROT_READ | PROT_WRITE</code></b> — permisos del mapeo. Si abrís con <code>O_RDONLY</code> pero mapearas <code>PROT_WRITE</code>, el kernel te da <code>EACCES</code>: los permisos del <i>fd</i> recortan los del mapeo.</li>
+        <li><b><code>MAP_SHARED</code></b> — las escrituras van a la página física compartida. <b><code>MAP_PRIVATE</code></b> haría copy-on-write y rompería la comunicación.</li>
+        <li><b><code>MAP_ANONYMOUS</code></b> — memoria sin backing file. No es lo que necesitamos.</li>
+        <li><b><code>MAP_FIXED</code></b> — fuerza la dirección. Nunca lo uses: pisa tus propias variables.</li>
+      </ul>
+      <div class="note"><b>Lo importante:</b> el productor y el consumidor reciben <b>direcciones virtuales distintas</b> (el kernel elige libre) pero apuntan a la <b>misma página física</b>. Por eso el consumidor no puede hacer aritmética de punteros sobre el <i>offset</i> del productor: los offsets sí coinciden, las direcciones no.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary>4 · <code>shm_unlink</code> <span class="sig">int shm_unlink(const char *name)</span></summary>
+    <div class="dbody">
+      <p>Borra el <b>nombre</b> del filesystem. Equivale a <code>unlink()</code> en archivos normales.</p>
+      <div class="sigblk">shm_unlink( "OS" );   // /dev/shm/OS desaparece</div>
+      <ul>
+        <li>Un proceso que ya lo tiene mapeado <b>seguí viendo los datos</b> intactos hasta que termine. Es el mismo modelo de Unix: borrar un archivo abierto no lo invalida.</li>
+        <li>La página física se libera cuando el <b>último</b> mapeo o <code>fd</code> se cierra.</li>
+        <li>Por eso el <code>shm_unlink</code> va en el <span class="k-cons">consumidor</span> y no en el productor: si el productor lo hiciera, el consumidor ya no podría abrir el objeto por nombre.</li>
+      </ul>
+      <div class="note dang"><b>Bug grave si no lo hacés:</b> el objeto sobrevive al exit de ambos procesos. La próxima ejecución del productor reabre el mismo bloque con datos viejos. Se limpia a mano con <code>rm /dev/shm/OS</code> o <code>shm_unlink("OS")</code> al inicio.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary>5 · <code>sprintf</code> / <code>strlen</code> / <code>printf</code> <span class="sig">funciones de biblioteca, NO son syscalls</span></summary>
+    <div class="dbody">
+      <p>Estas tres son <b>funciones de biblioteca de C</b>, no llamadas al sistema. Se ejecutan enteras en <b>user mode</b>, sin trap al kernel.</p>
+      <ul>
+        <li><code>sprintf(ptr, "%s", msg)</code> — <code>memcpy</code> puro: copia bytes hasta el <code>\0</code> de <code>msg</code>. Escribe <b>solo</b> los 5 bytes de "Hello". No toca la memoria del kernel.</li>
+        <li><code>strlen(msg)</code> — recorre la cadena contando bytes. <b>No es O(1)</b> aunque el hardware lo parezca: hace un barrido real de memoria.</li>
+        <li><code>ptr += strlen(msg)</code> — simple aritmética de punteros en un registro. <b>Cero syscalls.</b></li>
+      </ul>
+      <div class="note dang"><b>El bug del <code>ptr +=</code>:</b> no deja ni un espacio ni un <code>\0</code> entre las dos cadenas. El resultado en RAM es <code>HelloWorld!</code>, no <code>Hello World!</code>. Para el ASCII que se nota poco, pero el dato está corrupto igual.</div>
+    </div>
+  </details>
+</section>
+
+<!-- ═══════════════ TABLA ═══════════════ -->
+<section id="tabla">
+  <h2>Resumen de la ejecución</h2>
+  <p class="lead">Las 14 llamadas, en orden de ejecución real.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>Proceso</th><th>Línea</th><th>Llamada</th><th>Modo</th><th>Efecto</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td class="k-prod">productor</td><td>10</td><td><code>main()</code></td><td>user</td><td>El kernel crea el proceso y su espacio de direcciones</td></tr>
+        <tr><td>2</td><td class="k-prod">productor</td><td>28</td><td><code>shm_open</code></td><td>kernel</td><td>Crea <code>/dev/shm/OS</code> de 0 bytes · devuelve fd=3</td></tr>
+        <tr><td>3</td><td class="k-prod">productor</td><td>35</td><td><code>ftruncate</code></td><td>kernel</td><td>Extiende a 4096 B · reserva 1 página, ceroizada</td></tr>
+        <tr><td>4</td><td class="k-prod">productor</td><td>38</td><td><code>mmap</code></td><td>kernel</td><td>VMA en <code>0x7f2a…</code> con <code>PROT_WRITE</code></td></tr>
+        <tr><td>5</td><td class="k-prod">productor</td><td>45</td><td><code>sprintf</code></td><td>user</td><td>Escribe "Hello" en offset 0-4 · página marcada dirty</td></tr>
+        <tr><td>6</td><td class="k-prod">productor</td><td>46</td><td><code>ptr += 5</code></td><td>user</td><td>Sin syscall: ptr pasa a base+5</td></tr>
+        <tr><td>7</td><td class="k-prod">productor</td><td>47</td><td><code>sprintf</code></td><td>user</td><td>Escribe "World!" en offset 5-10</td></tr>
+        <tr><td>8</td><td class="k-prod">productor</td><td>50</td><td><code>return 0</code></td><td>kernel</td><td>exit · VMA liberado · <b>el objeto queda en /dev/shm</b></td></tr>
+        <tr><td>9</td><td class="k-cons">consumidor</td><td>9</td><td><code>main()</code></td><td>user</td><td>Segundo proceso, dirección virtual totalmente distinta</td></tr>
+        <tr><td>10</td><td class="k-cons">consumidor</td><td>23</td><td><code>shm_open</code></td><td>kernel</td><td>Encuentra el objeto existente · fd=3 · si no: ENOENT</td></tr>
+        <tr><td>11</td><td class="k-cons">consumidor</td><td>30</td><td><code>mmap</code></td><td>kernel</td><td>VMA en <code>0x7f8b…</code> (¡distinta!) · <code>PROT_READ</code></td></tr>
+        <tr><td>12</td><td class="k-cons">consumidor</td><td>37</td><td><code>printf</code></td><td>user</td><td>Lee hasta el <code>\0</code> del byte 11 → <code>HelloWorld!</code></td></tr>
+        <tr><td>13</td><td class="k-cons">consumidor</td><td>40</td><td><code>shm_unlink</code></td><td>kernel</td><td>Borra el nombre · los datos siguen vivos hasta el último ref</td></tr>
+        <tr><td>14</td><td class="k-cons">consumidor</td><td>42</td><td><code>return 0</code></td><td>kernel</td><td>exit · última referencia cae · página liberada</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════ PROBLEMAS ═══════════════ -->
+<section id="problemas">
+  <h2>Problemas y buenas prácticas</h2>
+  <div class="grid3" style="margin-bottom:16px">
+    <div class="ct"><div class="ic">🔴</div><h4>Sin sincronización</h4><p>El problema central. Sin <code>sem_open</code>/<code>sem_wait</code> el consumidor puede leer antes, durante o después de la escritura.</p></div>
+    <div class="ct"><div class="ic">🟠</div><h4>Dos cadenas pegadas</h4><p><code>ptr += strlen()</code> no deja separador. Resultado: <code>HelloWorld!</code>. Debería ser <code>ptr += strlen(m) + 1</code> o escribir <code>"Hello "</code>.</p></div>
+    <div class="ct"><div class="ic">🟠</div><h4>Fuga de <code>/dev/shm</code></h4><p>Si el consumidor no corre, el objeto queda huérfano para siempre. <code>df -h /dev/shm</code> para verificar.</p></div>
+    <div class="ct"><div class="ic">🟡</div><h4>No se unmapea</h4><p>Faltan <code>munmap(ptr, SIZE)</code> y <code>close(fd)</code>. El kernel limpia al morir el proceso, pero es mala práctica y lo usan los recolectores.</p></div>
+    <div class="ct"><div class="ic">🟡</div><h4>SIZE duplicado como constante</h4><p><code>4096</code> está hardcodeado en los dos archivos. Si cambiás uno y no el otro, <code>mmap</code> falla o leés de más.</p></div>
+    <div class="ct"><div class="ic">🟡</div><h4>Nombre fijo</h4><p><code>"OS"</code> es global en el sistema: dos alumnos en la misma máquina colisionan. Usá <code>"/mi_practica3_&lt;pid&gt;"</code>.</p></div>
+  </div>
+
+  <h3>Versión corregida y segura</h3>
+  <div class="card" style="padding:0;overflow:hidden"><pre class="c" id="codeFix"></pre></div>
+</section>
+
+<!-- ═══════════════ CORRER ═══════════════ -->
+<section id="correr">
+  <h2>Compilar y ejecutar</h2>
+  <div class="card">
+    <div class="cmdrow"><code>gcc -o product  producer.c -lrt</code><span>En glibc moderno <code>-lrt</code> es opcional; si te da <code>undefined reference to shm_open</code>, ponelo.</span></div>
+    <div class="cmdrow"><code>gcc -o consumid consumidor.c -lrt</code><span>El nombre del binario no importa, pero el del objeto (<code>"OS"</code>) sí.</span></div>
+    <div class="cmdrow"><code>./product</code><span>Crea el objeto y escribe. <b>No imprime nada.</b></span></div>
+    <div class="cmdrow"><code>./consumid</code><span>Lee e imprime <code>HelloWorld!</code>, después borra el objeto.</span></div>
+    <div class="cmdrow"><code>./consumid &amp;&amp; ./product</code><span>Orden inverso → <code>shm_open</code> falla con <code>No such file or directory</code>. Exactamente lo que chequea el <code>perror</code>.</span></div>
+    <div class="cmdrow"><code>ls -l /dev/shm/</code><span>Mientras el objeto está vivo, aparece un archivo de 4096 bytes ahí.</span></div>
+    <div class="cmdrow"><code>rm /dev/shm/OS</code><span>Limpieza manual si un run anterior quedó a medias.</span></div>
+  </div>
+
+  <div class="note ok" style="margin-top:18px">
+    <b>Resumen en una frase:</b> <code>shm_open</code> crea el archivo, <code>ftruncate</code> le da tamaño, <code>mmap</code> lo conecta a tu memoria, y como ambos mapean el <b>mismo</b> objeto con <code>MAP_SHARED</code>, el uno escribe en la RAM del otro. Todo lo demás — permisos, orden de arranque, terminadores de cadena — es la parte que el código original no resuelve.
+  </div>
+</section>
+<!-- ═══════════════ PROCESOS: FORK / WAIT ═══════════════ -->
+<section id="procesos">
+  <h2>Fork, wait y el ciclo de vida de un proceso</h2>
+  <p class="lead">Traza <b>una línea a la vez</b> del grafo de palabras, con la memoria de cada proceso, la tabla de tareas del kernel y la cinta de salida. Sin teoría: mirá cómo el kernel va creando, durmiendo y reapeando procesos.</p>
+
+  <div class="pv-top">
+    <span class="pv-n" id="pvStep">0 / 0</span>
+    <div class="pv-bar"><i id="pvFill"></i><span style="left:14%"></span><span style="left:38%"></span><span style="left:66%"></span><span style="left:88%"></span></div>
+    <span class="pv-ph" id="pvPhase">—</span>
+  </div>
+
+  <div class="pv-main">
+
+    <!-- ─── COLUMNA 1: CÓDIGO ─── -->
+    <div class="pv-col">
+      <div class="pnl pv-code">
+        <div class="pnl-h"><span class="d"></span>comando.c<span class="sp" id="pvCodeWho">P0</span></div>
+        <div class="pnl-b"><pre id="pvCode"></pre></div>
+      </div>
+      <div class="pnl">
+        <div class="pnl-h"><span class="d" style="background:var(--p1)"></span>memoria<span class="sp" id="pvMemWho">—</span></div>
+        <div class="pnl-b">
+          <div class="mem" id="pvMem"></div>
+          <div class="regs" id="pvRegs"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── COLUMNA 2: ESCENARIO ─── -->
+    <div class="pv-col">
+      <div class="pnl grow">
+        <div class="pnl-h"><span class="d"></span>bosque de procesos<span class="sp" id="pvReady">0 listos</span></div>
+        <div class="pnl-b">
+          <div class="scn" id="pvScn">
+            <svg id="pvWires"></svg>
+            <div class="frows" id="pvRows"></div>
+          </div>
+        </div>
+      </div>
+      <div class="pnl">
+        <div class="pnl-h"><span class="d" style="background:var(--pl)"></span>salida<span class="sp" id="pvTapeN">0 palabras</span></div>
+        <div class="pnl-b">
+          <div class="tape" id="pvTape"></div>
+          <div class="bufs" id="pvBufs"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── COLUMNA 3: KERNEL ─── -->
+    <div class="pv-col">
+      <div class="pnl">
+        <div class="pnl-h"><span class="d" style="background:var(--kernc)"></span>tabla de tareas</div>
+        <div class="pnl-b">
+          <table class="kt" id="pvKT"></table>
+        </div>
+      </div>
+      <div class="pnl">
+        <div class="pnl-h"><span class="d" style="background:var(--kernc)"></span>frontera user/kernel</div>
+        <div class="pnl-b">
+          <div class="sycfx" id="pvSy">
+            <div class="syline"></div>
+            <div class="syb u">user mode</div>
+            <div class="syb k">kernel mode</div>
+          </div>
+        </div>
+      </div>
+      <div class="pnl">
+        <div class="pnl-h"><span class="d" style="background:var(--ok)"></span>línea base de tiempo</div>
+        <div class="pnl-b"><div class="gantt" id="pvGantt"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fx" id="pvFx" style="margin-top:11px"><span class="k">fx</span><span id="pvFxTxt">—</span></div>
+
+  <div class="pv-ctl">
+    <button class="btn p" id="pvPlay">▶ Reproducir</button>
+    <button class="btn" id="pvPrev">◀</button>
+    <button class="btn" id="pvNext">▶</button>
+    <button class="btn" id="pvReset">↺</button>
+    <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted)">velocidad
+      <input type="range" id="pvSpeed" min="120" max="2400" value="800" style="accent-color:#22d3ee;width:100px">
+    </label>
+    <span class="tgl" id="pvRoll">🎲 re-tirar entrelazado</span>
+    <span class="tgl" id="pvCow">⤢ forzar COW</span>
+    <span class="tgl" id="pvBuf">☠ buffer heredado</span>
+    <span class="tgl" id="pvDet">ℹ detalle</span>
+  </div>
+
+  <div id="pvDetBox" style="display:none;margin-top:11px" class="note"><b id="pvDetTxt"></b></div>
+
+  <div class="grid3" style="margin-top:22px">
+    <div class="ct"><div class="ic">🌱</div><h4>copy-on-write nunca se separó</h4><p>El kernel copió las page tables cinco veces y ningún proceso escribió jamás una página compartida. Todo ese trabajo fue para nada.</p></div>
+    <div class="ct"><div class="ic">🔗</div><h4>el fd table se comparte</h4><p>Padre e hijo no copian el descriptor: apuntan al mismo <code>struct file</code> de stdout. Por eso la palabra del hijo aparece en la misma terminal.</p></div>
+    <div class="ct"><div class="ic">💣</div><h4>el buffer se hereda igual</h4><p>Si el padre tuviera texto sin lavar al hacer <code>fork</code>, los dos hijos lo volcarían duplicado. Mirá el toggle <code>☠</code>.</p></div>
+  </div>
+</section>
+</main>
+
+<footer>
+  Práctica 3 · Sistemas Operativos · <code>shm_open</code> · <code>mmap</code> · <code>ftruncate</code>
+</footer>
+
+<script>
+'use strict';
+
+/* ═══════════════ CÓDIGO FUENTE ═══════════════ */
+const SRC_P = [
+'#include <stdio.h>',
+'#include <stdlib.h>',
+'#include <string.h>',
+'#include <fcntl.h>',
+'#include <sys/shm.h>',
+'#include <sys/stat.h>',
+'#include <sys/mman.h>',
+'#include <unistd.h>',
+'',
+'int main() {',
+'    /* El tamaño en bytes del objeto de memoria compartida */',
+'    const int SIZE = 4096;',
+'    ',
+'    /* Nombre del objeto de memoria compartida */',
+'    const char *name = "OS";',
+'    ',
+'    /* Cadenas a escribir en la memoria compartida */',
+'    const char *message_0 = "Hello";',
+'    const char *message_1 = "World!";',
+'    ',
+'    /* Descriptor de archivo de memoria compartida */',
+'    int fd;',
+'    ',
+'    /* Puntero al objeto de memoria compartida */',
+'    char *ptr;',
+'',
+'    /* Crear el objeto de memoria compartida */',
+'    fd = shm_open(name, O_CREAT | O_RDWR, 0666);',
+'    if (fd == -1) {',
+'        perror("Error al ejecutar shm_open");',
+'        return 1;',
+'    }',
+'',
+'    /* Configurar el tamaño del objeto de memoria compartida */',
+'    ftruncate(fd, SIZE);',
+'',
+'    /* Mapear el objeto en el espacio de memoria del proceso */',
+'    ptr = mmap(0, SIZE, PROT_WRITE, MAP_SHARED, fd, 0);',
+'    if (ptr == MAP_FAILED) {',
+'        perror("Error al ejecutar mmap");',
+'        return 1;',
+'    }',
+'',
+'    /* Escribir en la memoria compartida */',
+'    sprintf(ptr, "%s", message_0);',
+'    ptr += strlen(message_0);',
+'    sprintf(ptr, "%s", message_1);',
+'    ptr += strlen(message_1);',
+'',
+'    return 0;',
+'}'
+].join('\n');
+
+const SRC_C = [
+'#include <stdio.h>',
+'#include <stdlib.h>',
+'#include <fcntl.h>',
+'#include <sys/shm.h>',
+'#include <sys/stat.h>',
+'#include <sys/mman.h>',
+'#include <unistd.h>',
+'',
+'int main() {',
+'    /* El tamaño en bytes del objeto de memoria compartida */',
+'    const int SIZE = 4096;',
+'    ',
+'    /* Nombre del objeto de memoria compartida */',
+'    const char *name = "OS";',
+'    ',
+'    /* Descriptor de archivo de memoria compartida */',
+'    int fd;',
+'    ',
+'    /* Puntero al objeto de memoria compartida */',
+'    char *ptr;',
+'',
+'    /* Abrir el objeto de memoria compartida existente */',
+'    fd = shm_open(name, O_RDONLY, 0666);',
+'    if (fd == -1) {',
+'        perror("Error al abrir la memoria compartida (ejecute ./productor primero)");',
+'        return 1;',
+'    }',
+'',
+'    /* Mapear el objeto en el espacio de memoria del proceso */',
+'    ptr = mmap(0, SIZE, PROT_READ, MAP_SHARED, fd, 0);',
+'    if (ptr == MAP_FAILED) {',
+'        perror("Error al ejecutar mmap");',
+'        return 1;',
+'    }',
+'',
+'    /* Leer e imprimir desde la memoria compartida */',
+'    printf("%s\\n", (char *)ptr);',
+'',
+'    /* Eliminar el objeto de memoria compartida del sistema */',
+'    shm_unlink(name);',
+'',
+'    return 0;',
+'}'
+].join('\n');
+
+const SRC_SEM = [
+'/* ──(productor)── se señaliza al TERMINAR de escribir ── */',
+'sem_t *sem = sem_open("/p3_sem", O_CREAT, 0666, 0);',
+'',
+'ptr = mmap(0, SIZE, PROT_WRITE, MAP_SHARED, fd, 0);',
+'',
+'sprintf(ptr, "%s", message_0);',
+'ptr += strlen(message_0) + 1;        /* <-- +1: deja el \\0 */',
+'sprintf(ptr, "%s", message_1);',
+'',
+'sem_post(sem);                       // "ya está, podés leer"',
+'',
+'/* ──(consumidor)── se bloquea hasta que el productor avise ── */',
+'sem_wait(sem);                       // duerme acá si no hay datos',
+'',
+'printf("%s\\n", (char *)ptr);        // ahora sí: "HelloWorld!"',
+'',
+'sem_close(sem);',
+'shm_unlink(name);',
+'sem_unlink("/p3_sem");              // el semáforo también se borra'
+].join('\n');
+
+const SRC_FIX = [
+'#define SHM_NAME "/practica3_memoria"',
+'#define SEM_NAME "/practica3_sem"',
+'#define SIZE     4096',
+'',
+'/* ─────────────── PRODUCTOR ─────────────── */',
+'int main(void) {',
+'    int fd = shm_open(SHM_NAME, O_CREAT | O_EXCL | O_RDWR, 0600);',
+'    if (fd == -1 && errno != EEXIST) { perror("shm_open"); return 1; }',
+'',
+'    if (ftruncate(fd, SIZE) == -1)  { perror("ftruncate"); return 1; }',
+'',
+'    char *ptr = mmap(NULL, SIZE, PROT_READ | PROT_WRITE,',
+'                     MAP_SHARED, fd, 0);',
+'    if (ptr == MAP_FAILED)         { perror("mmap");     return 1; }',
+'',
+'    /* separador + terminador: "Hello\\0World!\\0" */',
+'    strcpy(ptr, "Hello");',
+'    strcpy(ptr + strlen("Hello") + 1, "World!");',
+'',
+'    sem_post(sem);',
+'',
+'    munmap(ptr, SIZE);   /* ya no lo necesita */',
+'    close(fd);',
+'    return 0;',
+'}',
+'',
+'/* ─────────────── CONSUMIDOR ─────────────── */',
+'int main(void) {',
+'    int fd = shm_open(SHM_NAME, O_RDONLY, 0600);',
+'    if (fd == -1) { perror("Ejecute el productor primero"); return 1; }',
+'',
+'    char *ptr = mmap(NULL, SIZE, PROT_READ, MAP_SHARED, fd, 0);',
+'    if (ptr == MAP_FAILED) { perror("mmap"); return 1; }',
+'',
+'    sem_wait(sem);                        /* BLOQUEA hasta sem_post */',
+'    printf("%s\\n", ptr);',
+'',
+'    munmap(ptr, SIZE);',
+'    close(fd);',
+'    shm_unlink(SHM_NAME);',
+'    sem_unlink(SEM_NAME);',
+'    return 0;',
+'}'
+].join('\n');
+
+/* ═══════════════ RESALTADOR DE SINTAXIS ═══════════════ */
+function highlightC(src){
+  let s = src;
+  s = s.replace(/(\/\*[\s\S]*?\*\/|\/\/[^\n]*)/g, '\u0001C$1\u0002');
+  s = s.replace(/(^[ \t]*#\w+[^\n]*)/gm, '\u0001P$1\u0002');
+  s = s.replace(/("(?:[^"\\]|\\.)*")/g, '\u0001S$1\u0002');
+  s = s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  s = s.replace(/\u0001C([\s\S]*?)\u0002/g, '<span class="c-com">$1</span>');
+  s = s.replace(/\u0001P([^\n]*)\u0002/g, '<span class="c-pp">$1</span>');
+  s = s.replace(/\u0001S("(?:[^"\\]|\\.)*")\u0002/g, '<span class="c-str">$1</span>');
+  s = s.replace(/\b(int|char|const|void|return|if|else|sizeof|struct|unsigned|long|short|float|double|while|for|switch)\b/g, '<span class="c-kw">$1</span>');
+  s = s.replace(/\b(\d+)\b/g, '<span class="c-num">$1</span>');
+  s = s.replace(/\b(shm_open|ftruncate|mmap|munmap|sprintf|printf|strlen|strcpy|shm_unlink|sem_open|sem_wait|sem_post|sem_close|sem_unlink|close|perror)\b(?=\s*\()/g, '<span class="c-fn">$1</span>');
+  return s;
+}
+
+function renderCode(el, src, hi, cls){
+  const lines = highlightC(src).split('\n');
+  el.innerHTML = lines.map((l, i) => {
+    const n = i + 1;
+    const on = (hi || []).some(([a, b]) => n >= a && n <= b);
+    return '<span class="ln' + (on ? ' ' + cls : '') + '" data-n="' + n + '">' + (l || ' ') + '</span>';
+  }).join('');
+}
+
+/* ═══════════════ PASOS ═══════════════ */
+const NB = 32;
+const VA_P = '0x7F2AC000';
+const VA_C = '0x7F8B4000';
+
+const ZB = () => Array(NB).fill(0);
+const NOB = () => Array(NB).fill(null);
+function wr(b, str, off){
+  const c = b.slice();
+  for (let i = 0; i < str.length; i++) c[off + i] = str[i];
+  return c;
+}
+
+const DEF = {
+  who:'p', tab:'p', hi:[], mode:'u', sc:null, args:'', rd:-1,
+  p:{a:0,fd:null,mp:0,va:null,ptr:-1,ex:0},
+  c:{a:0,fd:null,mp:0,va:null,ptr:-1,ex:0,err:0},
+  sh:{linked:0,size:0},
+  b:null
+};
+function S(o){
+  return Object.assign({}, DEF, o, {
+    p: Object.assign({}, DEF.p, o.p || {}),
+    c: Object.assign({}, DEF.c, o.c || {}),
+    sh:Object.assign({}, DEF.sh, o.sh || {}),
+    b: o.b || NOB()
+  });
+}
+
+const STEPS = [
+
+/* ─────────── PRODUCTOR ─────────── */
+S({
+  hi:[[10,25]], tl:'<span class="dim">$ ./product</span>',
+  title:'Arranca el proceso',
+  u:'El kernel crea un proceso nuevo con su <b>propio espacio de direcciones</b>, sus descriptores (0, 1, 2) y su entrada en la tabla de procesos. Las constantes <code>SIZE</code>, <code>name</code>, <code>message_0</code> y <code>message_1</code> viven en la <b>pila</b> de este proceso. Nadie más, en todo el sistema, puede verlas todavía.',
+  k:'No hay ninguna llamada al sistema. Seguís en <b>user mode</b>: el kernel ya hizo su trabajo y te devolvió el control.',
+  seq:'pid 1000\ntabla de procesos:  [1000] producer  estado=RUNNING\nespacio virtual:   [stack 0x7ffd..] [heap 0x55a0..] [libc] ...\nfd table:  0→stdin   1→stdout   2→stderr',
+  p:{a:1}
+}),
+
+S({
+  hi:[[28,32]], mode:'k', sc:'shm_open', args:'shm_open("OS", O_CREAT|O_RDWR, 0666)  →  fd = 3',
+  tl:'<span class="dim">  syscall shm_open</span> <span class="ok">→ fd 3</span>',
+  title:'shm_open — crear el objeto compartido',
+  u:'Trampa al kernel (<i>trap</i>). El primer argumento es <code>"OS"</code>, que el kernel prefija internamente: el archivo real se llama <code>/dev/shm/OS</code>. <code>O_CREAT</code> le dice "si no existe, créalo" y <code>O_RDWR</code> que lo vamos a abrir en lectura y escritura.',
+  k:'El kernel busca <code>/dev/shm/OS</code>. No está, así que lo crea con <b>0 bytes</b> (un archivo nuevo siempre nace vacío) y le asigna el descriptor libre más bajo: <b>3</b>. Devuelve 3 al user mode.',
+  seq:'trap → kernel\n  lookup("/dev/shm/OS")  →  ENOENT\n  create("/dev/shm/OS", mode=0666)  →  tamaño = 0 bytes\n  return 3\n\nOJO: el objeto todavía mide 0 bytes. Por eso el\nsiguiente paso es obligatorio.',
+  p:{fd:3}, sh:{linked:1,size:0}
+}),
+
+S({
+  hi:[[35]], mode:'k', sc:'ftruncate', args:'ftruncate(3, 4096)  →  0',
+  tl:'<span class="dim">  syscall ftruncate</span> <span class="ok">→ 4096 bytes</span>',
+  title:'ftruncate — darle tamaño',
+  u:'Fija el tamaño del objeto en 4096 bytes. <b>Este paso es obligatorio</b> y es el que casi todos olvidan: <code>mmap</code> no puede mapear una longitud de 0 bytes.',
+  k:'El kernel extiende el objeto a <b>4096 bytes = 1 página exacta</b>. Reserva la página física en RAM y la <b>ceroiza</b>: los 4096 bytes empiezan todos en <code>\\0</code>. Esa ceroización es la razón por la que el <code>printf("%s")</code> del consumidor terminate la cadena en el byte 11.',
+  seq:'extensión:  0 → 4096 bytes\npágina física reservada en RAM:  [frame #4210]\ncontenido inicial:  00 00 00 00 00 00 00 00 ...  (4096 ceros)\n\nftruncate NO reserva RAM para siempre: es el\nmapeo el que mantiene la página viva.',
+  p:{fd:3}, sh:{linked:1,size:4096}, b:ZB()
+}),
+
+S({
+  hi:[[38,42]], mode:'k', sc:'mmap', args:'mmap(NULL, 4096, PROT_WRITE, MAP_SHARED, 3, 0)  →  0x7F2AC000',
+  tl:'<span class="dim">  syscall mmap</span> <span class="ok">→ 0x7F2AC000</span>',
+  title:'mmap — conectar la memoria con el proceso',
+  u:'Le pedís al kernel un rango de 4096 bytes conectados al objeto. El primer argumento es <code>0</code>: "elegí vos la dirección virtual libre". <code>PROT_WRITE</code> da permiso de escritura y <code>MAP_SHARED</code> es el que hace que las escrituras lleguen al objeto compartido.',
+  k:'El kernel crea un <b>VMA</b> (Virtual Memory Area) en el espacio de direcciones de este proceso. El rango queda asociado al fd 3 con desplazamiento 0. Devuelve la dirección base <code>0x7F2AC000</code>, que es un valor <b>arbitrario</b> elegido por el kernel.',
+  seq:'VMA creada:\n  inicio = 0x7F2AC000        longitud = 4096\n  protección  = PROT_WRITE        (solo escritura)\n  backing     = fd 3, offset 0\n  flags       = MAP_SHARED        (comparte la página física)\n\nMAP_PRIVATE en vez de MAP_SHARED → copy-on-write\ny el consumidor NUNCA vería los datos.',
+  p:{fd:3,mp:1,va:VA_P,ptr:0}, sh:{linked:1,size:4096}, b:ZB()
+}),
+
+S({
+  hi:[[45]], title:'sprintf — escribir "Hello"',
+  tl:'<span class="in">  user</span> <span class="dim">sprintf(ptr, "Hello") → 5 bytes en RAM</span>',
+  u:'<code>sprintf</code> es una <b>función de biblioteca</b>, no una syscall: no hay trampa al kernel. Internamente es un <code>memcpy</code> que copia los 5 bytes de <code>"Hello"</code> (sin el <code>\\0</code>) a la dirección del puntero.',
+  k:'El kernel no interviene. La CPU escribe directo en la página física: la copia de <code>\\0</code> implícito a la que apunta <code>ptr</code>. Esa página queda marcada <i>dirty</i>. Como es <code>MAP_SHARED</code>, el cambio es <b>visible para cualquier otro proceso que la mapee</b>.',
+  seq:'offset:  0    1    2    3    4    5    6    7\nRAM:     [H] [e] [l] [l] [o] [\\0] [\\0] [\\0]\n                 ↑ ptr (0x7F2AC000)\n\nfaltan 4091 bytes en cero después',
+  p:{fd:3,mp:1,va:VA_P,ptr:0}, sh:{linked:1,size:4096}, b:wr(ZB(),'Hello',0)
+}),
+
+S({
+  hi:[[46]], title:'ptr += strlen — mover el puntero',
+  tl:'<span class="in">  user</span> <span class="dim">ptr += 5  →  ptr = 0x7F2AC005</span>',
+  u:'Aritmética de punteros. <code>strlen("Hello")</code> devuelve 5, así que <code>ptr</code> avanza 5 bytes. <b>No hay syscall</b>: es una operación de 64 bits en un registro.',
+  k:'Nada. El kernel no se entera. Solamente se actualiza el valor guardado en el registro del proceso.',
+  seq:'strlen("Hello")  =  5      (recorre los 5 bytes buscando el \\0)\n\nptr antes  =  0x7F2AC000\nptr ahora =  0x7F2AC005      (offset 5)\n\nBUG: no deja ni un espacio ni un \\0 entre las dos\ncadenas. Por eso el resultado final es\n"HelloWorld!" y no "Hello World!".',
+  p:{fd:3,mp:1,va:VA_P,ptr:5}, sh:{linked:1,size:4096}, b:wr(ZB(),'Hello',0)
+}),
+
+S({
+  hi:[[47,48]], title:'sprintf — escribir "World!"',
+  tl:'<span class="in">  user</span> <span class="dim">sprintf(ptr, "World!") → offset 5-10</span>',
+  u:'Segunda escritura, en el offset 5. De nuevo sin syscall: 6 bytes copiados directo a RAM.',
+  k:'El kernel sigue sin participar. La página física compartida queda con el contenido final.',
+  seq:'offset:  0    1    2    3    4    5    6    7    8    9   10   11\nRAM:     [H] [e] [l] [l] [o] [W] [o] [r] [l] [d] [!] [\\0] [\\0]\n                        ↑ ptr (0x7F2AC005)\n\nEl byte 11 sigue en \\0 gracias a la ceroización\ndel ftruncate: ESO es lo que corta el printf.',
+  p:{fd:3,mp:1,va:VA_P,ptr:11}, sh:{linked:1,size:4096}, b:wr(wr(ZB(),'Hello',0),'World!',5)
+}),
+
+S({
+  hi:[[50,51]], mode:'k', sc:'exit_group', args:'exit_group(0)  →  status 0',
+  tl:'<span class="dim">$ <span class="ok">[productor terminó]</span> — el objeto sigue en /dev/shm</span>',
+  title:'El productor termina',
+  u:'Vuelve de <code>main</code> y el proceso muere. Faltan <code>munmap(ptr, SIZE)</code> y <code>close(fd)</code>, pero no importa: el kernel destruye el espacio de direcciones entero.',
+  k:'Se libera el VMA <code>0x7F2AC000</code> y el fd 3. <b>Pero la página física sigue en RAM</b>: el objeto de <code>/dev/shm</code> la mantiene viva, porque nunca se hizo <code>shm_unlink</code>. El dato que escribió el productor está intacto y esperando a que alguien lo lea.',
+  seq:'destrucción del espacio de direcciones del pid 1000\n  VMA 0x7F2AC000  →  liberada\n  fd 3             →  cerrado\n  página #4210     →  SIGUE VIVA (la sostiene /dev/shm)\n\n$ ls -l /dev/shm/\n-rw-rw-rw- 1 diego diego 4096 Oct  5 22:10 OS\n\nOJO: el exit NO borra el objeto. Si el consumidor\nno corre, /dev/shm/OS queda con datos viejos y el\npróximo ./product los va a encontrar ahí.',
+  p:{a:1,ex:1,fd:3,mp:0,va:null,ptr:-1},
+  sh:{linked:1,size:4096}, b:wr(wr(ZB(),'Hello',0),'World!',5)
+}),
+
+/* ─────────── CONSUMIDOR ─────────── */
+S({
+  who:'c', tab:'c', hi:[[9,20]],
+  tl:'<span class="dim">$ ./consumid</span>',
+  title:'Arranca el segundo proceso',
+  u:'Se crea un proceso <b>independiente</b>. No comparte nada con el productor: ni el stack, ni el heap, ni las variables. Su espacio de direcciones está completamente separado, incluso aunque ambos ejecuten el mismo binario.',
+  k:'El kernel le da un <b>PID distinto</b> y un espacio de direcciones nuevo, inicializado como copia en escritura a partir de la imagen del ejecutable. El proceso 1000 ya terminó: su memoria privada ya no existe.',
+  seq:'pid 1001\ntabla de procesos:  [1001] consumidor  estado=RUNNING\nespacio virtual:   [stack 0x7ffc..] [heap 0x55b1..]  ← TODO NUEVO\n\nEl hecho de que el productor ya terminó NO importa:\nlas páginas del objeto siguen en RAM porque /dev/shm\nlas mantiene vivas, no el proceso.',
+  c:{a:1}, p:{a:1,ex:1}, sh:{linked:1,size:4096}, b:wr(wr(ZB(),'Hello',0),'World!',5)
+}),
+
+S({
+  who:'c', tab:'c', hi:[[23,27]], mode:'k', sc:'shm_open',
+  args:'shm_open("OS", O_RDONLY, 0666)  →  fd = 3',
+  tl:'<span class="dim">  syscall shm_open</span> <span class="ok">→ fd 3</span> <span class="dim">(encontrado)</span>',
+  title:'shm_open — abrir el objeto existente',
+  u:'Mismo nombre, pero <b>solo lectura y sin <code>O_CREAT</code></b>. Esa omisión es deliberada: si el objeto no existiera, el consumidor debe <b>fallar</b> en vez de crear uno vacío y leer basura.',
+  k:'Esta vez el kernel <b>encuentra</b> <code>/dev/shm/OS</code> y lo abre. Le asigna el fd 3 a <i>este</i> proceso (los descriptores son por proceso, no globales). Si el productor no hubiera corrido, devolvería <code>-1</code> con <code>errno = ENOENT</code> y el <code>perror</code> imprimiría el aviso.',
+  seq:'lookup("/dev/shm/OS")  →  ENOENT ?  NO → existe\nopen(..., O_RDONLY)  →  fd 3\n\nRecordá: los fd de este proceso son 0,1,2 y 3,\ntotalmente independientes de los del productor.\nLos offsets SÍ coinciden entre ambos mapeos.\nLas direcciones virtuales NO.',
+  p:{a:1,ex:1}, c:{a:1,fd:3}, sh:{linked:1,size:4096}, b:wr(wr(ZB(),'Hello',0),'World!',5)
+}),
+
+S({
+  who:'c', tab:'c', hi:[[30,34]], mode:'k', sc:'mmap',
+  args:'mmap(NULL, 4096, PROT_READ, MAP_SHARED, 3, 0)  →  0x7F8B4000',
+  tl:'<span class="dim">  syscall mmap</span> <span class="ok">→ 0x7F8B4000</span>',
+  title:'mmap — mapear la MISMA página física',
+  u:'Idéntico al del productor pero con <code>PROT_READ</code>. El kernel elige otra dirección virtual libre: <b>0x7F8B4000</b>, distinta de <code>0x7F2AC000</code>.',
+  k:'Acá está la magia de la memoria compartida: la dirección virtual es <b>otra</b>, pero la página física a la que apunta es <b>exactamente la misma</b> (frame #4210). Los dos procesos escriben y leen la misma RAM. Si el consumidor ahora lee el byte 0, lee un <code>H</code> que el productor escribió hace microsegundos.',
+  seq:'PRODUCTOR          CONSUMIDOR\n0x7F2AC000 ──┐   ┌── 0x7F8B4000\n             │   │\n             └───┴──►  frame #4210  (RAM real)\n\nDos direcciones virtuales distintas,\nuna sola página física.',
+  p:{a:1,ex:1}, c:{a:1,fd:3,mp:1,va:VA_C,ptr:0}, sh:{linked:1,size:4096}, b:wr(wr(ZB(),'Hello',0),'World!',5)
+}),
+
+S({
+  who:'c', tab:'c', hi:[[37]], rd:11,
+  tl:'<span class="ou">HelloWorld!</span>',
+  title:'printf — leer e imprimir',
+  u:'<code>printf("%s", ptr)</code> no sabe cuántos bytes leer: avanza byte a byte hasta encontrar un <code>\\0</code>. Empieza en el offset 0 y se detiene en el <b>byte 11</b>, que sigue en cero porque el <code>ftruncate</code> lo dejó así. La lectura entra al buffer de <code>stdio</code>, y recién ahí el <code>write(2)</code> la baja a la terminal.',
+  k:'Solo el <code>write</code> final es una syscall (dentro de <code>printf</code>). La lectura de los 12 bytes es código de user mode ejecutándose directamente contra la página compartida. <b>Nadie escribió ese <code>\\0</code></b>: es un accidente afortunado de la ceroización de páginas.',
+  seq:'printf("%s", 0x7F8B4000)\n  lee offset 0 → \'H\'   acumulado "H"\n  lee offset 1 → \'e\'   "He"\n  ...\n  lee offset 10 → \'!\'  "HelloWorld!"\n  lee offset 11 → \\0   CORTA  ← fin de la cadena\n\nsale por stdout:  HelloWorld!',
+  p:{a:1,ex:1}, c:{a:1,fd:3,mp:1,va:VA_C,ptr:0}, sh:{linked:1,size:4096}, b:wr(wr(ZB(),'Hello',0),'World!',5)
+}),
+
+S({
+  who:'c', tab:'c', hi:[[40]], mode:'k', sc:'shm_unlink', args:'shm_unlink("OS")  →  0',
+  tl:'<span class="dim">  syscall shm_unlink</span> <span class="ok">→ /dev/shm/OS borrado</span>',
+  title:'shm_unlink — borrar el nombre',
+  u:'Elimina el objeto. <b>Pero no borra los datos todavía</b>: este proceso todavía tiene el objeto mapeado y abierto, así que la página física sigue viva. Es el mismo modelo de Unix: borrar un archivo abierto no lo invalida.',
+  k:'El kernel borra la entrada <code>/dev/shm/OS</code> del directorio tmpfs. La página física se libera recién cuando el <b>último</b> mapeo o descriptor se cierra. Por eso el <code>shm_unlink</code> va en el consumidor y no en el productor: si el productor lo hiciera, el consumidor ya no podría abrir el objeto por nombre.',
+  seq:'unlink("/dev/shm/OS")  →  el NOMBRE desaparece\ncontador de referencias:  2 → 1\npágina #4210:  SIGUE EN RAM\n\nPor esto ./consumid necesita correr después\nde ./product. Si el exit del productor fuera el\núltimo, el objeto moriría con él.',
+  p:{a:1,ex:1}, c:{a:1,fd:3,mp:1,va:VA_C,ptr:0}, sh:{linked:0,size:4096}, b:wr(wr(ZB(),'Hello',0),'World!',5)
+}),
+
+S({
+  who:'c', tab:'c', hi:[[42,43]], mode:'k', sc:'exit_group', args:'exit_group(0)  →  status 0',
+  tl:'<span class="dim">$ <span class="ok">[consumidor terminó]</span></span>',
+  title:'El proceso termina',
+  u:'Vuelve de <code>main</code>. Ni <code>munmap</code> ni <code>close</code> se llaman explícitamente, pero da igual: el kernel limpia el espacio de direcciones entero al morir el proceso.',
+  k:'Última referencia al objeto → se libera la página #4210. La RAM vuelve a estar limpia y <code>/dev/shm</code> queda como estaba. Los 4096 bytes que escribió el productor desaparecieron para siempre.',
+  seq:'destrucción del espacio de direcciones\n  VMA 0x7F8B4000  →  liberada\n  página #4210     →  devuelta al allocator\n  /dev/shm/        →  vacío\n\nRECORDATORIO: producer.c NO hace shm_unlink.\nSi el consumidor no corre, el objeto queda\nhuérfano en /dev/shm con los datos viejos dentro.',
+  p:{a:1,ex:1}, c:{a:1,fd:3,mp:0,va:null,ptr:-1,ex:1}, sh:{linked:0,size:0}, b:NOB()
+})
+];
+
+/* ═══════════════ RENDER ═══════════════ */
+const $ = id => document.getElementById(id);
+const bytesEl = $('bytes');
+let cells = [];
+
+function buildBytes(){
+  bytesEl.innerHTML = '';
+  cells = [];
+  for (let i = 0; i < NB; i++){
+    const d = document.createElement('div');
+    d.className = 'cell n idx';
+    d.dataset.i = i;
+    bytesEl.appendChild(d);
+    cells.push(d);
+  }
+  const mk = document.createElement('div');
+  mk.className = 'pmark hide';
+  mk.id = 'pmark';
+  bytesEl.appendChild(mk);
+}
+
+function paintBytes(st){
+  const exists = st.sh.linked === 1 || st.sh.size > 0;
+  const mk = $('pmark');
+  cells.forEach((c, i) => {
+    const v = st.b[i];
+    let cls = 'cell';
+    if (!exists || v === null) { cls += ' n'; c.textContent = '·'; }
+    else if (v === 0)          { cls += ' nz'; c.textContent = '\\0'; }
+    else                       { cls += ' w'; c.textContent = v; }
+    if (i === st.rd && exists)  cls += ' term';
+    if (i < st.rd && exists)    cls += ' rd';
+    c.className = cls;
+    c.style.animation = 'none';
+    void c.offsetWidth;
+    c.style.animation = '';
+  });
+  //Recentrar el puntero sobre la celda actual
+  const off = st.who === 'p' ? st.p.ptr : st.c.ptr;
+  if (off >= 0 && exists && cells[off]){
+    mk.classList.remove('hide');
+    mk.classList.toggle('c', st.who === 'c');
+    mk.textContent = 'ptr → ' + off;
+    mk.style.left = (cells[off].offsetLeft + cells[off].offsetWidth / 2) + 'px';
+    mk.style.top = '0px';
+  } else {
+    mk.classList.add('hide');
+  }
+}
+
+function paintProc(d, letter){
+  const box = $('proc' + letter.toUpperCase());
+  box.classList.toggle('gone', !d.a);
+  box.classList.toggle('act', d.a && !d.ex);
+  const tag = $('tag' + letter.toUpperCase());
+  if (d.err)      { tag.className = 'tag err';   tag.textContent = 'error'; }
+  else if (d.ex)  { tag.className = 'tag dead';  tag.textContent = 'terminado'; }
+  else if (!d.a)  { tag.className = 'tag dead';  tag.textContent = 'no existe'; }
+  else if (d.mp)  { tag.className = 'tag run';   tag.textContent = 'en ejecución'; }
+  else            { tag.className = 'tag wait';  tag.textContent = 'en ejecución'; }
+
+  const fd = $('fd' + letter.toUpperCase());
+  fd.textContent = d.fd === null ? '—' : d.fd;
+  fd.className = d.fd === null ? 'none' : '';
+
+  const ptr = $('ptr' + letter.toUpperCase());
+  if (d.ex){ ptr.textContent = '—'; ptr.className = 'none'; }
+  else if (!d.mp){ ptr.textContent = 'NULL'; ptr.className = 'none'; }
+  else { ptr.textContent = d.va + ' +' + d.ptr; ptr.className = ''; }
+
+  const vma = $('vma' + letter.toUpperCase());
+  if (d.mp){
+    vma.className = 'vma';
+    const perm = letter === 'p' ? 'PROT_WRITE' : 'PROT_READ';
+    vma.innerHTML =
+      '<span class="addr">' + d.va + ' &nbsp;→&nbsp; +4096 B</span>' +
+      '<span class="caret">ptr=' + d.ptr + '</span>' +
+      '<span class="perm"><span class="chip">' + perm + '</span>' +
+      '<span class="chip">MAP_SHARED</span>' +
+      '<span class="chip">fd 3 · off 0</span></span>';
+  } else {
+    vma.className = 'vma empty';
+    vma.textContent = 'sin regiones mapeadas';
+  }
+}
+
+let cur = 0;
+
+function render(i, animate){
+  cur = Math.max(0, Math.min(STEPS.length - 1, i));
+  const st = STEPS[cur];
+
+  //Sysbar
+  const sb = $('sysbar');
+  const kern = st.mode === 'k';
+  sb.classList.toggle('kern', kern);
+  $('pill').className = 'pill ' + (kern ? 'kern' : 'user');
+  $('pill').textContent = kern ? 'KERNEL MODE' : 'USER MODE';
+  $('scm').textContent = st.sc ? st.sc + '()' : '— sin syscall —';
+  $('scm').style.color = kern ? 'var(--kern)' : 'var(--muted)';
+  $('sca').textContent = st.args || '';
+
+  //Procesos
+  paintProc(st.p, 'p');
+  paintProc(st.c, 'c');
+
+  //RAM
+  const ram = $('ram');
+  const alive = st.sh.linked === 1;
+  ram.classList.toggle('dead', !alive);
+  ram.classList.toggle('glow', alive);
+  const fsb = $('fsbadge');
+  fsb.className = 'fsbadge' + (alive ? '' : ' gone');
+  const tsh = $('tagShm');
+  tsh.className = 'tag ' + (alive ? 'run' : 'dead');
+  tsh.textContent = alive ? 'objeto vivo' : 'sin objeto';
+  $('ramsize').textContent = st.sh.size ? st.sh.size + ' bytes · 1 página' : (alive ? '0 bytes' : '');
+
+  paintBytes(st);
+
+  $('cnt').textContent = st.sh.size
+    ? 'Mostrando los primeros ' + NB + ' de ' + st.sh.size + ' bytes · el resto sigue en \\0'
+    : (alive ? 'objeto vacío, todavía sin páginas mapeadas' : 'no hay objeto que inspeccionar');
+
+  //Explicación
+  $('exWho').className = 'stag ' + (st.who === 'p' ? 'producer' : 'consumidor');
+  $('exWho').textContent = st.who === 'p' ? 'producer.c' : 'consumidor.c';
+  $('exTitle').textContent = st.title;
+  $('exUser').innerHTML = st.u;
+  $('exKern').innerHTML = '<b>' + (kern ? 'Qué hace el kernel' : 'El kernel no participa') + ':</b> ' + st.k;
+  $('exKern').style.borderLeftColor = kern ? 'var(--kern)' : '#2b3a5c';
+  $('exKern').style.background = kern ? '#1a150a' : '#0e1524';
+  $('exKern').style.color = kern ? '#f0dfb8' : '#a9bbd6';
+  $('exSeq').textContent = st.seq;
+
+  //Código
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === st.tab));
+  renderCode($('code'), st.tab === 'p' ? SRC_P : SRC_C, st.hi, st.tab === 'p' ? 'hi' : 'hic');
+
+  //Terminal
+  if (animate !== false){
+    $('term').insertAdjacentHTML('beforeend', '<span class="l">' + st.tl + '</span>');
+    $('term').scrollTop = $('term').scrollHeight;
+  }
+
+  //Cables
+  $('wireP').classList.toggle('on', st.p.mp === 1);
+  $('wireC').classList.toggle('on', st.c.mp === 1);
+  drawWires();
+
+  $('counter').textContent = (cur + 1) + ' / ' + STEPS.length;
+  $('bar').style.width = ((cur + 1) / STEPS.length * 100) + '%';
+}
+
+function drawWires(){
+  const m = $('machine'), svg = $('wires');
+  const rect = m.getBoundingClientRect();
+  svg.setAttribute('viewBox', '0 0 ' + rect.width + ' ' + rect.height);
+  function curve(fromId, toId, side){
+    const a = $(fromId).getBoundingClientRect();
+    const b = $(toId).getBoundingClientRect();
+    const x1 = a.left - rect.left + a.width / 2;
+    const y1 = a.bottom - rect.top;
+    const x2 = b.left - rect.left + b.width * (side === 'p' ? 0.28 : 0.72);
+    const y2 = b.top - rect.top;
+    const dy = Math.max(22, (y2 - y1) * 0.55);
+    return 'M' + x1 + ',' + y1 + ' C' + x1 + ',' + (y1 + dy) + ' ' + x2 + ',' + (y2 - dy) + ' ' + x2 + ',' + y2;
+  }
+  $('wireP').setAttribute('d', curve('procP', 'ram', 'p'));
+  $('wireC').setAttribute('d', curve('procC', 'ram', 'c'));
+}
+
+/* ═══════════════ CONTROLES ═══════════════ */
+let timer = null;
+function stop(){ if (timer){ clearInterval(timer); timer = null; } $('play').textContent = '▶ Reproducir'; }
+function play(){
+  if (timer) return stop();
+  $('play').textContent = '❚❚ Pausa';
+  timer = setInterval(() => {
+    if (cur >= STEPS.length - 1) return stop();
+    render(cur + 1, true);
+  }, Number($('speed').value));
+}
+
+$('play').addEventListener('click', play);
+$('next').addEventListener('click', () => { stop(); render(cur + 1, true); });
+$('prev').addEventListener('click', () => { stop(); render(cur - 1, false); });
+$('reset').addEventListener('click', () => {
+  stop();
+  $('term').innerHTML = '';
+  buildBytes();
+  render(0, true);
+});
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    const tab = t.dataset.tab;
+    const st = STEPS[cur];
+    renderCode($('code'), tab === 'p' ? SRC_P : SRC_C, st.tab === tab ? st.hi : [], tab === 'p' ? 'hi' : 'hic');
+    document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
+  });
+});
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowRight'){ stop(); render(cur + 1, true); }
+  else if (e.key === 'ArrowLeft'){ stop(); render(cur - 1, false); }
+  else if (e.code === 'Space'){ e.preventDefault(); play(); }
+});
+
+window.addEventListener('resize', drawWires);
+
+/* ═══════════════ CÓDIGO AUXILIAR ═══════════════ */
+renderCode($('codeSem'), SRC_SEM, [], '');
+renderCode($('codeFix'), SRC_FIX, [], '');
+buildBytes();
+render(0, true);
+
+/* ═══════════════ SIMULADOR DE CARRERA ═══════════════ */
+const T_CREATE = 0.2, T_HELLO = 1.0, T_WORLD = 2.0;
+
+const CASES = [
+  { id:'seq',  label:'Launch secuencial',  sub:'./product && ./consumid',
+    desc:'El productor termina antes de que arranque el consumidor. El bloqueo del shell actúa como barrera implícita.',
+    run: () => {
+      const out = { ok:1, vacio:0, parcial:0, error:0 };
+      return out;
+    }},
+  { id:'par',  label:'Lanzamiento simultáneo', sub:'./product & ./consumid & wait',
+    desc:'Ambos procesos compiten por la CPU. El consumidor puede leer en cualquier momento.',
+    run: () => {
+      const out = { ok:0, vacio:0, parcial:0, error:0 };
+      for (let i = 0; i < 2000; i++){
+        const t = Math.random() * 4;
+        if (t < T_CREATE) out.error++;
+        else if (t < T_HELLO) out.vacio++;
+        else if (t < T_WORLD) out.parcial++;
+        else out.ok++;
+      }
+      return out;
+    }}
+];
+
+const OUT_META = {
+  ok:     { col:'#4ade80', ic:'✔', desc:'Imprime "HelloWorld!" correctamente' },
+  parcial:{ col:'#fbbf24', ic:'~', desc:'Imprime "Hello" — leyó a mitad de la escritura' },
+  vacio:  { col:'#8496b8', ic:'.', desc:'Imprime línea vacía — el bloque aún está todo en \\0' },
+  error:  { col:'#f87171', ic:'✖', desc:'shm_open falla con ENOENT — el objeto aún no existe' }
+};
+
+function renderSim(){
+  const bars = $('bars');
+  bars.innerHTML = '';
+  CASES.forEach(cs => {
+    const r = cs.run();
+    const total = Object.values(r).reduce((a, b) => a + b, 0) || 1;
+    const head = document.createElement('div');
+    head.style.cssText = 'margin:16px 0 9px;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap';
+    head.innerHTML = '<b style="font-size:14.5px">' + cs.ic + '</b>' +
+      '<b style="font-size:14.5px">' + cs.label + '</b>' +
+      '<code class="mono" style="font-size:12.5px;color:var(--muted)">' + cs.sub + '</code>';
+    bars.appendChild(head);
+
+    const note = document.createElement('div');
+    note.style.cssText = 'color:var(--muted);font-size:12.8px;margin:-4px 0 9px';
+    note.textContent = cs.desc;
+    bars.appendChild(note);
+
+    ['ok','parcial','vacio','error'].forEach(k => {
+      const pc = (r[k] / total) * 100;
+      const m = OUT_META[k];
+      const row = document.createElement('div');
+      row.className = 'bar';
+      row.title = m.desc;
+      row.innerHTML =
+        '<span class="nm"><span style="color:' + m.col + '">' + m.ic + '</span> ' +
+        '<span class="mono" style="font-size:12px">' + k + '</span></span>' +
+        '<span class="tr"><span class="fl" data-w="' + pc.toFixed(2) + '" style="background:' + m.col + '"></span></span>' +
+        '<span class="pc">' + (pc > 0 ? pc.toFixed(1) : '0.0') + '%</span>';
+      bars.appendChild(row);
+    });
+  });
+
+  const par = CASES[1].run();
+  const total = Object.values(par).reduce((a, b) => a + b, 0);
+  const bad = (par.parcial + par.vacio + par.error) / total * 100;
+  $('simsum').innerHTML =
+    '<div class="note dang" style="margin:0">' +
+    '<b>Resultado:</b> en el lanzamiento simultáneo, <b>' + bad.toFixed(1) + '%</b> de las corridas ' +
+    'muestran datos corruptos o un fallo. Es la firma clásica de una <b>carrera de datos</b>: el mismo ' +
+    'binario produce resultados distintos según el-timing. Compilado una vez y ejecutado mil veces, ' +
+    'sin cambiar una línea de código.' +
+    '</div>' +
+    '<div class="note ok" style="margin-top:12px">' +
+    '<b>Por qué "en la terminal siempre anda":</b> con <code>./product && ./consumid</code> el shell ' +
+    'espera a que el primer proceso muera antes de lanzar el segundo. Eso te da una barrera gratis que ' +
+    'esconden el bug. Los <code>&amp;&amp;</code> son tu sincronización, y no está en el código.' +
+    '</div>';
+
+  //Animar las barras
+  requestAnimationFrame(() => {
+    bars.querySelectorAll('.fl').forEach((f, i) => {
+      setTimeout(() => { f.style.width = f.dataset.w + '%'; }, 60 + i * 55);
+    });
+  });
+}
+
+$('simrun').addEventListener('click', renderSim);
+$('simclean').addEventListener('click', () => {
+  $('bars').innerHTML = '';
+  $('simsum').innerHTML = '';
+});
+</script>
+<script>
+/* ══════════════════════════════════════════════════════════════
+   VISUALIZADOR DE PROCESOS · fork / wait / exit
+   Traza línea a línea de comando.c
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+
+/* ─────────── CÓDIGO FUENTE (68 líneas) ─────────── */
+const SRC = [
+'#include <stdio.h>',
+'#include <stdlib.h>',
+'#include <unistd.h>',
+'#include <sys/types.h>',
+'#include <sys/wait.h>',
+'',
+'/* Función auxiliar para ejecutar el trabajo de un nodo en un proceso hijo individual */',
+'void ejecutar_nodo(const char *cadena) {',
+'    pid_t pid = fork();',
+'    if (pid < 0) {',
+'        perror("Error al ejecutar fork");',
+'        exit(EXIT_FAILURE);',
+'    }',
+'    if (pid == 0) {',
+'        /* Proceso hijo: imprime la palabra y fuerza la salida del buffer */',
+'        printf("%s ", cadena);',
+'        fflush(stdout);',
+'        exit(EXIT_SUCCESS);',
+'    }',
+'    /* Proceso padre: se bloquea hasta que el nodo actual termine */',
+'    wait(NULL);',
+'}',
+'',
+'int main(void) {',
+"    /* 1. Nodo Inicial: 'Hola' */",
+'    ejecutar_nodo("Hola");',
+'',
+"    /* 2. Nodos de segundo nivel: 'Buenos', 'dias', 'tenga' */",
+'    ejecutar_nodo("Buenos");',
+'    ejecutar_nodo("dias");',
+'    ejecutar_nodo("tenga");',
+'',
+"    /* 3. Nodo 'usted.': Requiere la finalización de 'Buenos', 'dias' y 'tenga' */",
+'    ejecutar_nodo("usted.");',
+'',
+'    /* 4. Ejecución de ramas concurrentes según las dependencias del grafo */',
+'',
+"    /* Rama 1: 'y' -> 'malos' (Depende de 'Buenos') */",
+'    pid_t rama1 = fork();',
+'    if (rama1 == 0) {',
+'        ejecutar_nodo("y");',
+'        ejecutar_nodo("malos");',
+'        exit(EXIT_SUCCESS);',
+'    }',
+'',
+"    /* Rama 2: 'Hasta' -> 'luego' (Depende de 'usted.' y 'tenga') */",
+'    pid_t rama2 = fork();',
+'    if (rama2 == 0) {',
+'        ejecutar_nodo("Hasta");',
+'        ejecutar_nodo("luego");',
+'        exit(EXIT_SUCCESS);',
+'    }',
+'',
+'    /* El proceso principal espera a que ambas ramas completen su ejecución */',
+'    wait(NULL);',
+'    wait(NULL);',
+'',
+"    /* 5. Nodo Final: 'Lucas' (Depende de 'malos', 'usted.' y 'luego') */",
+'    pid_t lucas = fork();',
+'    if (lucas == 0) {',
+'        printf("Lucas\\n");',
+'        fflush(stdout);',
+'        exit(EXIT_SUCCESS);',
+'    }',
+'    wait(NULL);',
+'',
+'    return 0;',
+'}'
+].join('\n');
+
+/* ─────────── COLORES POR PROCESO ─────────── */
+const CLS = { P0:0, R1:1, R2:2, L:3 };
+const CLSC = ['var(--p0)','var(--p1)','var(--p2)','var(--pl)'];
+const NAMES = { P0:'main', R1:'rama1', R2:'rama2', L:'lucas' };
+
+/* ─────────── MOTOR DE ESTADO ─────────── */
+const SYS = {
+  pid: 1000,
+  procs: {},
+  order: [],
+  tape: [],
+  ready: [],
+  focus: 'P0',
+  step: 0,
+  cowSpread: false,
+  bufHack: false,
+
+  nextPid(){ return this.pid++; },
+
+  addProc(id, pparent, line, word){
+    const parent = pparent || null;
+    const p = {
+      id, pid:this.nextPid(),
+      parent,
+      ppid: parent ? (this.procs[parent] ? this.procs[parent].pid : 0) : 0,
+      cls:CLS[id] !== undefined ? CLS[id] : 0,
+      state:'R', word: word || null, line: line,
+      frame: [], regs:{}, buf:[],
+      born: this.step, died: null, reaped: null,
+      cowWith: [], func:'main', chan:null,
+      ret:null, zombie:false, ghost:false
+    };
+    this.procs[id] = p;
+    this.order.push(id);
+    return p;
+  },
+
+  pidOf(id){ return this.procs[id] ? this.procs[id].pid : 0; },
+
+  cow(parent, child){
+    this.procs[parent].cowWith.push(child);
+    this.procs[child].cowWith.push(parent);
+  },
+
+  spreadCow(){
+    this.cowSpread = true;
+    this.order.forEach(id => { if (this.procs[id].cowWith.length) this.procs[id].cowSpread = true; });
+  },
+
+  push(id, arr){
+    const p = this.procs[id];
+    if (!p) return;
+    arr.forEach(v => { if (p[v[0]] !== undefined) p[v[0]] = v[1]; });
+  },
+
+  pushFrame(id, arr){ this.procs[id].frame = arr.map(a => Object.assign({}, a)); },
+
+  setReg(id, r, v){
+    const p = this.procs[id];
+    if (p) p.regs[r] = v;
+  },
+
+  setLine(id, l, func){
+    const p = this.procs[id];
+    if (!p) return;
+    if (l !== null && l !== undefined) p.line = l;
+    if (func) p.func = func;
+  },
+
+  setState(id, s, chan){
+    const p = this.procs[id];
+    if (!p) return;
+    p.state = s;
+    p.chan = chan || null;
+    const i = this.ready.indexOf(id);
+    if (s === 'R' || s === 'T'){ if (i < 0) this.ready.push(id); }
+    else if (i >= 0) this.ready.splice(i, 1);
+  },
+
+  toBuf(id, word){
+    const p = this.procs[id];
+    if (p) p.buf.push(word);
+  },
+
+  dumpBuf(id){
+    const p = this.procs[id];
+    if (!p) return [];
+    const out = p.buf.slice();
+    p.buf = [];
+    out.forEach(w => this.tape.push(w));
+    return out;
+  },
+
+  kill(id){
+    const p = this.procs[id];
+    if (!p) return;
+    p.state = 'Z'; p.zombie = true; p.died = this.step; p.chan = null;
+    const i = this.ready.indexOf(id);
+    if (i >= 0) this.ready.splice(i, 1);
+  },
+
+  reap(id){
+    const p = this.procs[id];
+    if (!p) return;
+    p.state = 'X'; p.reaped = this.step;
+  },
+
+  /* ¿el proceso tiene algún hijo vivo? */
+  aliveChildren(id){
+    return this.order.filter(c => {
+      const p = this.procs[c];
+      return p.ppid === this.pidOf(id) && !p.reaped;
+    });
+  }
+};
+
+/* ─────────── FABRICA DE PASOS ─────────── */
+/* acts que ocurren dentro del kernel aunque no digan 'trap' */
+const KACT = { kern:1, die:1, reap:1, block:1, wake:1, dump:1 };
+
+function S(p, act, line, fx, fn, opt){
+  const o = opt || {};
+  return {
+    p, act, line, fx, fn,
+    k: o.k || (KACT[act] ? 'kern' : 'cpu'),
+    det: o.det || '',
+    w: o.w || null,
+    seg: o.seg || null,
+    phase: o.phase || null
+  };
+}
+
+/* ═══════════ BLOQUES REUTILIZABLES ═══════════ */
+
+/* frame de ejecutar_nodo: 3 variables locales */
+function frEjec(pidv, word){
+  return [
+    { n:'cadena', v:'0x55a3 → .rodata "' + word + '"' },
+    { n:'pid',    v: pidv },
+    { n:'ret',    v:'0x4011c9 → main+0x29' }
+  ];
+}
+function frMain(extra){
+  const b = [];
+  if (extra) extra.forEach(e => b.push(e));
+  else b.push({ n:'(vacío)', v:'— ninguna variable local todavía —' });
+  return b;
+}
+
+/* ─── printf("%s ", cadena) ─── */
+function blkPrint(p, word){
+  return [
+    S(p, 'cpu', 16, 'user: memcpy(buf, "' + word + ' ", ' + (word.length + 1) + ')', s => {
+      s.toBuf(p, word + ' ');
+    }, { w:word + ' ',
+         det:'sprintf/printf copia la cadena al buffer interno de stdio. NO es una llamada al sistema: sigue en user mode.' })
+  ];
+}
+
+/* ─── fflush(stdout) → write(2) ─── */
+function blkFlush(p, line){
+  const L = line || 17;
+  return [
+    S(p, 'trap', L, 'TRAP → write(1, buf, n)', s => {
+      s.setState(p, 'R');
+    }, { k:'trap', seg:{ u:'fflush(stdout)', k:'sys_write → tty_write' },
+         det:'fflush fuerza el vaciado del buffer de stdio con un write(2). Los bytes llegan al descriptor 1, que el hijo heredó del padre.' }),
+    S(p, 'dump', L, 'write() → cinta de salida', s => {
+      s.dumpBuf(p);
+    }, { seg:{ u:'', k:'vfs_write → ttys' },
+         det:'El kernel escribe en el terminal. A partir de acá la palabra es irreversible: no se puede borrar.' })
+  ];
+}
+
+/* ─── exit(EXIT_SUCCESS) ─── */
+function blkExit(p, opt){
+  const o = opt || {};
+  const L = o.line === undefined ? 18 : o.line;
+  return [
+    S(p, 'kern', L, () => SYS.procs[p] && SYS.procs[p].buf.length
+        ? 'atEXIT: drena stdio → write(1)'
+        : 'atEXIT: drena stdio → nada, ya estaba vacío', s => {
+      s.dumpBuf(p);
+    }, { seg:{ u:'exit(0)', k:'__run_exit_handlers → fflush' },
+         det:'exit() NO es una llamada directa al kernel: primero corre los handlers atexit y vacía el buffer de stdio. Ojo con esto: como ya hiciste fflush un par de líneas antes, acá no queda nada que escribir. El fflush era redundante — exit() lo hacía igual.' }),
+    S(p, 'trap', L, 'TRAP → exit_group(231)', () => {}, {
+      k:'trap', seg:{ u:'exit(0)', k:'sys_exit_group' },
+      det:'Recién ahora sí: exit_group mata TODOS los hilos del grupo de hilos y no retorna nunca. Por eso las líneas que siguen a exit() en ejecutar_nodo no se ejecutan jamás.' }),
+    S(p, 'die', L, 'mmput() · exit_files() · exit_notify() → SIGCHLD', s => {
+      s.kill(p);
+    }, { seg:{ u:'', k:'do_exit → notify_parent' },
+         det:'El kernel libera el espacio de direcciones, los descriptores y manda SIGCHLD al padre. El proceso queda ZOMBIE: ya murió pero nadie recogió su exit status, así que la tabla de tareas lo conserva.' })
+  ];
+}
+
+/* ─── wait(NULL) → wait4(-1, NULL, 0, NULL) ─── */
+function blkWait(parent, target){
+  return [
+    S(parent, 'trap', 21, 'TRAP → wait4(-1, NULL, 0, NULL)', s => {
+      s.setState(parent, 'R');
+    }, { k:'trap', seg:{ u:'wait(NULL)', k:'sys_wait4' },
+         det:'wait4 con pid = -1 significa "esperá a cualquiera de mis hijos". El argumento NULL descarta el exit status, por eso wait() devuelve un valor inútil.' }),
+    S(parent, 'block', 21, 'sin hijo Z disponible → dormir en do_wait', s => {
+      s.setState(parent, 'S', 'do_wait');
+    }, { seg:{ u:'', k:'schedule() · TASK_INTERRUPTIBLE' },
+         det:'No hay ningún hijo muerto todavía, así que el proceso se duerme. Deja de usar CPU y el scheduler lo elige a otro. Su proceso NO termina.' }),
+    S(parent, 'wake', 21, 'SIGCHLD → wake_up_parent()', s => {
+      s.setState(parent, 'R');
+    }, { seg:{ u:'', k:'sigqueue → wake_up' },
+         det:'Cuando un hijo llama exit_group, el kernel le manda SIGCHLD al padre y lo despierta de do_wait.' }),
+    S(parent, 'reap', 21, () => 'reap: release_task(' + target + ')  ·  wait() devuelve ' + SYS.pidOf(target), s => {
+      s.reap(target);
+    }, { seg:{ u:'wait() → pid del hijo', k:'release_task · free_pidmap' },
+         det:'REAP: el kernel borra la fila de la tabla de tareas, libera el PID y la memoria del hijo. Recién ahora el hijo dejó de existir del todo.' })
+  ];
+}
+
+/* ─── fork() directo desde main (L39 / L47 / L59) ─── */
+function blkForkRaw(parent, name, line, opt){
+  const o = opt || {};
+  const st = [];
+  st.push(S(parent, 'trap', line, 'TRAP → clone(CLONE_VM|CLONE_FILES|SIGHAND)', () => {}, {
+    k:'trap', seg:{ u:'fork()  @L' + line, k:'sys_clone' },
+    det:'fork() es un wrapper de clone(2). Los flags piden compartir la tabla de descriptores y los handlers de señales, pero una tabla de páginas COPIA.' }));
+  st.push(S(parent, 'kern', line, 'alloc_task_struct()  →  ' + name + ' recibe un PID libre', s => {
+    s.addProc(name, parent, line, o.word || null);
+    s.setFrameOf(name);
+  }, { seg:{ u:'', k:'dup_task_struct · alloc_pidmap' },
+       det:'Se reserva un task_struct nuevo y un PID libre del bitmap. El PPID queda apuntando al padre. El hijo todavía no corre: está en la cola de listos.' }));
+  st.push(S(parent, 'kern', line, 'dup_mm() COW  ·  copy_files() fd compartido', s => {
+    s.cow(parent, name);
+  }, { seg:{ u:'', k:'copy_page_tables (COW) · files_struct' },
+       det:'Se copia la tabla de páginas marcando cada página como copy-on-write: las dos copias apuntan al MISMO frame físico hasta que alguien escriba. Los descriptores NO se copian: padre e hijo comparten el mismo struct file de stdout.' }));
+  st.push(S(parent, 'kern', line, 'wake_up_new_task()  ·  ' + name + ' queda en L' + (line + 1), s => {
+    s.setReg(parent, 'RAX', s.pidOf(name));
+    s.setState(name, 'R');
+    s.setState(parent, 'S', o.waitHere ? 'do_wait' : null);
+  }, { seg:{ u:'', k:'sched enqueue_child' },
+       det:'El hijo entra en la cola de listos con el MISMO RIP que el padre: está parado justo después de la instrucción syscall. El padre sigue y recibe el PID del hijo en RAX.' }));
+  st.push(S(parent, 'ret', line, 'ambos retornan de fork()', s => {
+    s.setReg(name, 'RAX', '0');
+    if (!o.waitHere) s.setState(parent, 'R');
+  }, { w:o.word,
+       det:'El padre tiene RAX = PID del hijo (> 0). El hijo tiene RAX = 0. Ese 0 es lo único que hace que if (pid == 0) entre al bloque del hijo.' }));
+  return st;
+}
+
+/* ═══════════ BLOQUE ejecutar_nodo() completo ═══════════
+   padre y hijo:true concurrencia: el padre se duerme
+   en wait ANTES de que el hijo imprima.
+   ═══════════════════════════════════════════════════ */
+function blkNodo(parent, child, word, line0){
+  const out = [];
+  out.push(S(parent, 'call', line0, 'call ejecutar_nodo  ·  RSP-=24  ·  frame nuevo', s => {
+    s.pushFrame(parent, frEjec('(sin asignar)', word));
+    s.setFunc(parent, 'ejecutar_nodo');
+    s.pushVar(parent, 'cadena', '0x55a3 → .rodata "' + word + '"');
+  }, { det:'Se apila el frame deactivation: return address + 2 variables locales (cadena, pid). SP baja 24 bytes. El argumento word es un puntero a .rodata, NO una copia de la cadena.' }));
+
+  out.push.apply(out, blkForkRaw(parent, child, 9, { word:word, waitHere:false }));
+
+  out.push(S(parent, 'cpu', 10, 'if (pid < 0)  →  false   ·  CF=0', () => {}, {
+    det:'El padre comparó RAX con 0. RAX = PID del hijo, que es > 0, así que la comparación es falsa y no entra al bloque de error.' }));
+  out.push(S(parent, 'cpu', 14, 'if (pid == 0)  →  false   ·  salta al bloque padre', () => {}, {
+    det:'Esta es la línea que decide el rol. En el padre RAX ≠ 0, así que se salta todo el bloque del hijo y cae directo en el wait().' }));
+  out.push(S(parent, 'trap', 21, 'TRAP → wait4(-1, NULL, 0, NULL)', () => {}, {
+    k:'trap', seg:{ u:'wait(NULL)  @L21', k:'sys_wait4' },
+    det:'wait(2) es un atajo de wait4(-1, NULL, 0, NULL): espera a cualquiera de los hijos, sin importar su exit status.' }));
+  out.push(S(parent, 'block', 21, 'P0 → S  ·  wait channel = do_wait', s => {
+    s.setState(parent, 'S', 'do_wait');
+  }, { seg:{ u:'', k:'schedule() · TASK_INTERRUPTIBLE' },
+       det:'El padre se duerme. En la tabla de tareas queda en estado S: vivo, pero sin CPU. El kernel le asigna la CPU a otro proceso.' }));
+
+  /* ─── cambia el scheduler: ahora corre el hijo ─── */
+  out.push(S(child, 'sched', 9, 'scheduler: ' + child + ' toma la CPU  ·  RAX=0', s => {
+    s.setState(child, 'R');
+    s.pushFrame(child, frEjec('0', word));
+  }, { det:'El hijo arranca en el MISMO punto que el padre: la línea 9, justo después del syscall. Pero RAX le vale 0, no el PID. Es una copia con una sola diferencia útil.' }));
+  out.push(S(child, 'cpu', 10, 'if (pid < 0)  →  false', () => {}, {
+    det:'En el hijo RAX = 0, así que 0 < 0 es falso. Nunca se entra al bloque de error salvo que el fork haya fallado.' }));
+  out.push(S(child, 'cpu', 14, 'if (pid == 0)  →  TRUE   ·  entra al bloque hijo', () => {}, {
+    det:'Acá se separa el camino. El hijo entra al bloque que el padre se saltó.' }));
+
+  out.push.apply(out, blkPrint(child, word));
+  out.push.apply(out, blkFlush(child));
+  out.push.apply(out, blkExit(child, { line:18 }));
+
+  out.push(S(parent, 'wake', 21, 'SIGCHLD → wake_up_parent()  ·  P0 → R', s => {
+    s.setState(parent, 'R');
+  }, { seg:{ u:'', k:'exit_notify → sigqueue(SIGCHLD)' },
+       det:'El exit_group del hijo le mandó SIGCHLD al padre y lo despertó de do_wait. El padre sigue justo después de su wait().' }));
+  out.push(S(parent, 'reap', 21, () => 'reap → release_task  ·  wait() devuelve ' + SYS.pidOf(child), s => {
+    s.reap(child);
+  }, { seg:{ u:'wait() → pid del hijo', k:'release_task · free_pidmap' },
+       det:'REAP: se borra la fila de la tabla de tareas, se libera el PID y la memoria del hijo. El hijo recién ahora deja de existir.' }));
+  out.push(S(parent, 'ret', 22, 'ret  ·  RSP+=24  ·  frame de ejecutar_nodo liberado', s => {
+    s.setFunc(parent, 'main');
+    s.popFrame(parent);
+  }, { det:'Vuelve a main. El frame se descarta; el estado del proceso vuelve a ser el de main.' }));
+  return out;
+}
+
+/* ─────────── MÉTODOS COMPLEMENTARIOS ─────────── */
+Object.assign(SYS, {
+  setFunc(id, f){ const p = this.procs[id]; if (p) p.func = f; },
+
+  pushVar(id, n, v){
+    const p = this.procs[id]; if (!p) return;
+    const e = p.frame.find(x => x.n === n);
+    if (e) e.v = v; else p.frame.push({ n, v });
+  },
+
+  popFrame(id){
+    const p = this.procs[id];
+    if (p) p.frame = p.func === 'main' ? frMain() : [];
+  },
+
+  /* fork copia la pila: el hijo arranca con el frame idéntico al del padre */
+  setFrameOf(id){
+    const p = this.procs[id]; if (!p || !p.parent) return;
+    const src = this.procs[p.parent];
+    if (src) p.frame = src.frame.map(a => Object.assign({}, a));
+  },
+
+  /* el buffer de stdio también se hereda en el fork */
+  inheritBuf(childId){
+    const c = this.procs[childId]; if (!c || !c.parent) return;
+    const src = this.procs[c.parent];
+    if (src) src.buf.forEach(w => c.buf.push(w));
+  }
+});
+
+/* ─────────── RESET ─────────── */
+function resetSys(){
+  SYS.pid = 1000; SYS.procs = {}; SYS.order = []; SYS.tape = [];
+  SYS.ready = []; SYS.focus = 'P0'; SYS.step = 0;
+  SYS.cowSpread = false;
+  SYS.addProc('P0', 0, 24, null);
+  SYS.pushFrame('P0', frMain());
+  SYS.setFunc('P0', 'main');
+  SYS.setState('P0', 'R');
+  SYS.setReg('P0', 'RIP', '0x401136');
+}
+
+/* ─────────── PRNG determinista ─────────── */
+function mkRnd(seed){
+  let s = (seed >>> 0) || 1;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+/* ─────────── ENTRELAZADO VÁLIDO ───────────
+   Fusiona dos subtraces preservando el orden interno de
+   cada una: cualquier resultado es una ejecución legal. */
+function interleave(a, b, rnd){
+  const out = []; let i = 0, j = 0;
+  while (i < a.length || j < b.length){
+    let takeA;
+    if (i >= a.length) takeA = false;
+    else if (j >= b.length) takeA = true;
+    else takeA = rnd() < 0.5;
+    out.push(takeA ? a[i++] : b[j++]);
+  }
+  return out;
+}
+
+function tag(arr, phase){ arr.forEach(x => { x.phase = phase; }); return arr; }
+
+/* ─────────── SUBRAMA: dos nodos encadenados + exit ─────────── */
+/* Una rama: dos ejecutar_nodo encadenadas y su propio exit.
+   lineas = [primerNodo, segundoNodo, exit] */
+function blkRama(branch, kids, lines){
+  const out = [];
+  const w = BRANCH_WORDS[branch] || [];
+  out.push.apply(out, blkNodo(branch, kids[0], w[0], lines[0]));
+  out.push(S(branch, 'call', lines[1], 'call ejecutar_nodo  ·  2º nodo de la rama', () => {}, {
+    det:'La primera ejecutar_nodo YA devolvió: el hijo de ella murió, el padre de ella (esta rama) lo reapeó y siguió. Por eso esta segunda llamada sí se ejecuta.' }));
+  out.push.apply(out, blkNodo(branch, kids[1], w[1], lines[1]));
+  out.push.apply(out, blkExit(branch, { line: lines[2] }));
+  out.push(S(branch, 'done', lines[2], 'exit_group → la rama termina', s => {
+    s.setState(branch, 'X');
+    s.died = s.step;
+  }, { det:'La rama se va. Como P0 todavía no llegó a sus wait(), queda ZOMBIE: su exit status sigue guardado en la tabla de tareas.' }));
+  return out;
+}
+const BRANCH_WORDS = { R1:['y','malos'], R2:['Hasta','luego'] };
+
+/* ═══════════ ENSAMBLADO DE LA TRAZA ═══════════ */
+function buildTrace(opt){
+  const o = opt || {};
+  const rnd = mkRnd(o.roll ? (Date.now() & 0x7fffffff) : 1118);
+  resetSys();
+  const T = [];
+  const add = a => { Array.isArray(a) ? T.push.apply(T, a) : T.push(a); };
+
+  /* ── FASE 0 · arranque ── */
+  add(S('P0', 'cpu', 24, 'entry → main()  ·  RIP=0x401136  ·  argc/argv en el stack', () => {}, {
+    phase:'Arranque',
+    det:'El kernel cargó el ELF, cargó las librerías y saltó al entry point. El proceso P0 (PID 1000) es el único que existe. Su frame de main todavía no tiene variables locales.'
+  }));
+
+  /* ── FASES 1-3 · cinco nodos secuenciales ── */
+  const SEQ = [
+    { id:'H', word:'Hola',   line:26, ph:'Nodo 1' },
+    { id:'B', word:'Buenos', line:29, ph:'Nodos 2-4' },
+    { id:'D', word:'dias',   line:30, ph:'Nodos 2-4' },
+    { id:'T', word:'tenga',  line:31, ph:'Nodos 2-4' },
+    { id:'U', word:'usted.', line:34, ph:'Nodo 5' }
+  ];
+  SEQ.forEach(n => add(tag(blkNodo('P0', n.id, n.word, n.line), n.ph)));
+
+  /* ── FASE 4 · buffer heredado (toggle de bug) ── */
+  if (o.bufHack){
+    add(S('P0', 'cpu', 38, 'printf("X ") sin fflush  →  queda en el buffer de stdio', s => {
+      s.toBuf('P0', 'X ');
+    }, { phase:'Fase 4',
+         det:'Este paso NO existe en tu código: lo agrega el toggle ☠ para mostrar el hazard clásico. Si el padre tuviera texto sin lavar en el momento del fork, los dos hijos lo heredarían y cada uno lo volcaría al morir: la palabra sale TRES veces, una de P0 y dos de los hijos.' }));
+  }
+
+  /* ── FASE 4 · rama 1 ── */
+  add(tag(blkForkRaw('P0', 'R1', 39, { word:'y' }), 'Rama 1'));
+  add(S('P0', 'cpu', 40, 'if (rama1 == 0)  →  false  ·  P0 no entra al bloque', s => {
+    s.pushVar('P0', 'rama1', s.pidOf('R1')); s.setLine('P0', 40, 'main');
+  }, { phase:'Rama 1', det:'En el padre RAX = PID de R1 (> 0), así que la condición es falsa. El padre NO espera: sigue derecho y hace el segundo fork. Acá nace la concurrencia.' }));
+  add(S('R1', 'cpu', 40, 'if (rama1 == 0)  →  TRUE  ·  R1 entra al bloque', s => {
+    s.setState('R1', 'R'); s.pushFrame('R1', frMain()); s.setFunc('R1', 'main');
+    s.setReg('R1', 'RAX', '0');
+    if (o.bufHack) s.inheritBuf('R1');
+  }, { phase:'Rama 1', det:'R1 es una copia de P0 con RAX = 0, así que su rama del if es la verdadera. Ojo: también copió el buffer de stdio de P0.' }));
+
+  /* ── FASE 4 · rama 2 (P0 no esperó: los dos conviven) ── */
+  add(tag(blkForkRaw('P0', 'R2', 47, { word:'Hasta' }), 'Rama 2'));
+  add(S('P0', 'cpu', 48, 'if (rama2 == 0)  →  false  ·  P0 no entra al bloque', s => {
+    s.pushVar('P0', 'rama2', s.pidOf('R2')); s.setLine('P0', 48, 'main');
+  }, { phase:'Rama 2', det:'Idem. P0 ya tiene DOS hijos vivos (R1 y R2) y ninguno fue esperado todavía. Ahora viene el verdadero punto de concurrencia del programa.' }));
+  add(S('R2', 'cpu', 48, 'if (rama2 == 0)  →  TRUE  ·  R2 entra al bloque', s => {
+    s.setState('R2', 'R'); s.pushFrame('R2', frMain()); s.setFunc('R2', 'main');
+    s.setReg('R2', 'RAX', '0');
+    if (o.bufHack) s.inheritBuf('R2');
+  }, { phase:'Rama 2', det:'R2 también es una copia de P0, y también heredó su buffer de stdio.' }));
+
+  /* ── FASE 4 · las dos ramas corren entrelazadas ── */
+  const r1 = tag(blkRama('R1', ['Y', 'M'], [41, 42, 43]), 'Rama 1');
+  const r2 = tag(blkRama('R2', ['Ha', 'Lu'], [49, 50, 51]), 'Rama 2');
+  add(interleave(r1, r2, rnd));
+
+  /* ── FASE 4 · los dos wait finales ── */
+  const first  = rnd() < 0.5 ? 'R1' : 'R2';
+  const second = first === 'R1' ? 'R2' : 'R1';
+  add(tag([
+    S('P0', 'trap', 55, 'TRAP → wait4(-1, NULL, 0, NULL)', s => { s.setState('P0', 'R'); }, {
+      phase:'Espera de ramas',
+      det:'Ambos hijos ya están en Z: wait4 no tiene que dormir, encuentra un zombi enseguida y lo reapea en el acto.' }),
+    S('P0', 'reap', 55, () => 'reap ' + first + '  ·  wait() devuelve ' + SYS.pidOf(first), s => { s.reap(first); }, {
+      phase:'Espera de ramas',
+      det:'REAP de ' + first + '. El kernel liberó su task_struct y su PID. Ojo: wait(NULL) descarta el exit status, así que el valor devuelto no se puede usar.' }),
+    S('P0', 'trap', 56, 'TRAP → wait4(-1, NULL, 0, NULL)', () => {}, {
+      phase:'Espera de ramas', k:'trap',
+      det:'Segunda llamada idéntica a la anterior. Junto con la primera, esta segunda llamada completa la espera de los dos hijos: dos wait(NULL) seguidos equivalen a esperar a todos los hijos.' }),
+    S('P0', 'reap', 56, () => 'reap ' + second + '  ·  la otra rama también desapareció', s => { s.reap(second); }, {
+      phase:'Espera de ramas',
+      det:'REAP de ' + second + '. Con esto P0 se quedó sin hijos: las dos ramas terminou su trabajo.' })
+  ], 'Espera de ramas'));
+
+  /* ── FASE 5 · Lucas ── */
+  add(tag(blkForkRaw('P0', 'L', 59, { word:'Lucas' }), 'Nodo final'));
+  add(S('P0', 'cpu', 60, 'if (lucas == 0)  →  false', s => {
+    s.pushVar('P0', 'lucas', s.pidOf('L'));
+  }, { phase:'Nodo final', det:'P0 no entra al bloque: él es el padre, no el hijo. El PID que guarda en la variable lucas sirve para distinguirlo, no para esperarlo.' }));
+  add(S('L', 'cpu', 60, 'if (lucas == 0)  →  TRUE', s => {
+    s.setState('L', 'R'); s.setReg('L', 'RAX', '0');
+  }, { phase:'Nodo final', det:'L entra al bloque y va directo al printf: no usa ejecutar_nodo, por eso no hace falta el wait.' }));
+  add(S('P0', 'trap', 65, 'TRAP → wait4(-1, NULL, 0, NULL)', () => {}, {
+    phase:'Nodo final', k:'trap', seg:{ u:'wait(NULL)  @L65', k:'sys_wait4' },
+    det:'P0 duerme otra vez en do_wait. Lucas sigue vivo, así que todavía no hay nada que reapear.' }));
+  add(S('P0', 'block', 65, 'P0 → S  ·  do_wait', s => { s.setState('P0', 'S', 'do_wait'); }, {
+    phase:'Nodo final', seg:{ u:'', k:'schedule()' },
+    det:'P0 duerme una vez más. Falta que Lucas imprima y muera.' }));
+  add(S('L', 'cpu', 61, 'printf("Lucas\\n")  →  buffer de stdio', s => { s.toBuf('L', 'Lucas\n'); }, {
+    phase:'Nodo final', w:'Lucas\n',
+    det:'Ojo con el "\\n": es el único printf del programa que mete salto de línea en vez de un espacio.' }));
+  add(tag(blkFlush('L', 62), 'Nodo final'));
+  add(tag(blkExit('L', { line:63 }), 'Nodo final'));
+  add(S('P0', 'wake', 65, 'SIGCHLD → wake_up_parent()  ·  P0 → R', s => { s.setState('P0', 'R'); }, {
+    phase:'Nodo final', seg:{ u:'', k:'exit_notify → SIGCHLD' },
+    det:'El exit_group de Lucas mandó SIGCHLD y despertó a P0 de su do_wait.' }));
+  add(S('P0', 'reap', 65, () => 'reap L  ·  wait() devuelve ' + SYS.pidOf('L'), s => { s.reap('L'); }, {
+    phase:'Nodo final', seg:{ u:'wait() → pid', k:'release_task' },
+    det:'Último reap. Ya no queda ningún proceso hijo vivo: la tabla de tareas vuelve a tener una sola fila.' }));
+
+  /* ── FASE 6 · cierre ── */
+  add(S('P0', 'cpu', 67, () => 'return 0  →  exit_group(0)' + (o.bufHack ? '  ·  drena su buffer primero' : ''), s => {
+    s.dumpBuf('P0');
+    s.setState('P0', 'X'); s.setFunc('P0', 'main');
+  }, {
+    phase:'Cierre',
+    det:'P0 muere sin shm_unlink y sin esperar a nadie: ya no le queda ningún hijo vivo. exit_group(0) devuelve 0 al shell, por eso ./comando no reporta error.'
+  }));
+
+  T.forEach((s, i) => { s.i = i; });
+  return T;
+}
+
+/* ═══════════ RENDER · BOSQUE DE PROCESOS ═══════════ */
+const $ = id => document.getElementById(id);
+const ROWS = [
+  { key:'r0', label:'gen 0', cls:0 },
+  { key:'r1', label:'gen 1', cls:1 },
+  { key:'r2', label:'gen 2', cls:2 },
+  { key:'r3', label:'gen 3', cls:3 }
+];
+
+function scnB(){
+  const el = $('pvScn'); if (!el) return;
+  el.style.display = 'grid'; el.style.gridTemplateRows = 'auto auto auto auto';
+}
+
+function renderRows(){
+  const host = $('pvRows');
+  host.innerHTML = '';
+  ROWS.forEach(r => {
+    const d = document.createElement('div');
+    d.className = 'frow'; d.dataset.row = r.key;
+    d.innerHTML = '<div class="rl">' + r.label + '</div><div class="rc"></div>';
+    host.appendChild(d);
+  });
+}
+
+function stateTxt(s){
+  return s === 'Z' ? 'zombi' : s === 'S' ? 'espera' : s === 'X' ? 'muerto' : 'ready';
+}
+
+/* sincroniza una caja existente con el estado del motor, sin recrearla:
+   así la animación de la caja no se reinicia en cada paso. */
+function syncBox(el, p){
+  el.className = 'pbox c' + p.cls + ' s' + p.state;
+
+  const pl = el.querySelector('.pl');
+  if (pl) pl.textContent = 'L' + p.line + ' · ' + p.pid;
+  const pb = el.querySelector('.pb2');
+  if (pb) pb.textContent = stateTxt(p.state);
+
+  /* el puntito del scheduler */
+  const pn = el.querySelector('.pn');
+  if (pn){
+    let mk = pn.querySelector('.schedmark');
+    if (p.state === 'R' && !mk){
+      mk = document.createElement('span');
+      mk.className = 'schedmark'; mk.style.fontSize = '9px'; mk.textContent = '●';
+      pn.appendChild(mk);
+    } else if (p.state !== 'R' && mk) mk.remove();
+  }
+
+  /* el aro de espera sólo existe mientras duerme */
+  let w = el.querySelector('.wring');
+  if (p.state === 'S'){
+    if (!w){
+      w = document.createElement('span');
+      w.className = 'wring';
+      w.innerHTML = '<span></span>';
+      el.appendChild(w);
+    }
+    const t = w.firstElementChild;
+    if (t) t.textContent = p.chan || 'do_wait';
+  } else if (w) w.remove();
+}
+
+function renderScn(step, prev){
+  const host = $('pvRows');
+
+  /* limpiar cajas de una traza anterior (rebuild por 🎲 o ☠) */
+  host.querySelectorAll('.pbox').forEach(el => {
+    if (!SYS.order.includes(el.dataset.p)) el.remove();
+  });
+
+  /* cada proceso vive en la fila igual a su profundidad en el árbol */
+  const depth = id => {
+    let d = 0, cur = SYS.procs[id];
+    while (cur && cur.parent){ d++; cur = SYS.procs[cur.parent]; }
+    return d;
+  };
+
+  SYS.order.forEach(id => {
+    const p = SYS.procs[id];
+    const row = host.querySelector('[data-row="r' + Math.min(depth(id), 3) + '"] .rc');
+    if (!row) return;
+    const el   = row.querySelector('.pbox[data-p="' + id + '"]:not(.gh)');
+    const born = prev && !prev.order.includes(id);
+
+    /* ─── REAP: succión y luego queda la huella ─── */
+    if (p.reaped !== null || p.state === 'X'){
+      if (el && !el.dataset.dying){
+        el.dataset.dying = '1';
+        el.classList.add('reaped');
+        setTimeout(() => {
+          el.remove();
+          if (!row.querySelector('.pbox.gh[data-p="' + id + '"]')){
+            const g = document.createElement('div');
+            g.className = 'pbox gh c' + p.cls;
+            g.dataset.p = id;
+            g.innerHTML = '<div class="pn">' + p.id + '</div>';
+            row.appendChild(g);
+          }
+        }, 520);
+      }
+      return;
+    }
+    if (el && el.dataset.dying) return;
+
+    if (el){
+      /* ya existía: sólo se actualiza */
+      const was = el.dataset.h;
+      const now = hash(p);
+      el.dataset.h = now;
+      const wasZ = was && was.split('|')[1] === 'Z';
+      syncBox(el, p);
+      /* transición recién llegada a zombi → colapso + Z flotante */
+      if (p.state === 'Z' && !wasZ){
+        el.classList.add('zing');
+        setTimeout(() => {
+          const z = document.createElement('div');
+          z.className = 'zghost'; z.textContent = 'Z';
+          el.appendChild(z);
+        }, 320);
+      }
+      return;
+    }
+
+    /* nuevo */
+    const d = document.createElement('div');
+    d.innerHTML = '<div class="pbox c' + p.cls + (born ? ' newborn' : '') + ' s' + p.state +
+                  '" data-p="' + id + '">' +
+                  '<div class="pn">' + id + '</div>' +
+                  '<div class="pl">L' + p.line + ' · ' + p.pid + '</div>' +
+                  '<span class="pb2">' + stateTxt(p.state) + '</span></div>';
+    const ne = d.firstElementChild;
+    ne.dataset.h = hash(p);
+    row.appendChild(ne);
+    syncBox(ne, p);
+  });
+
+  /* ─── carrera del reap: los zombis que quedan tiemblan ─── */
+  if (step && step.act === 'reap'){
+    host.querySelectorAll('.pbox.sZ').forEach(z => {
+      z.classList.add('race');
+      setTimeout(() => z.classList.remove('race'), 460);
+    });
+  }
+
+  /* contador del panel */
+  const alive = SYS.order.filter(i => SYS.procs[i].reaped === null && SYS.procs[i].state !== 'X');
+  $('pvReady').textContent = alive.length + ' en la tabla · ' +
+    alive.filter(i => SYS.procs[i].state === 'Z').length + ' zombis · ' +
+    alive.filter(i => SYS.procs[i].state === 'S').length + ' dormidos';
+
+  drawForkWire(step);
+}
+
+function hash(p){
+  return p.line + '|' + p.state + '|' + p.pid + '|' + (p.chan || '');
+}
+
+/* flecha del fork: del padre a su hijo recién creado */
+function drawForkWire(step){
+  const svg = $('pvWires');
+  svg.innerHTML = '';
+  if (!step || (step.act !== 'trap' && step.act !== 'kern')) return;
+  const bornNow = SYS.order.find(id => SYS.procs[id].born === SYS.step);
+  if (!bornNow) return;
+  const p = SYS.procs[bornNow];
+  const parentId = p.parent;
+  const pa = document.querySelector('.pbox[data-p="' + parentId + '"]');
+  const pb = document.querySelector('.pbox[data-p="' + bornNow + '"]');
+  if (!pa || !pb) return;
+
+  /* el padre "suelta" el clon */
+  pa.classList.add('detach');
+  setTimeout(() => pa.classList.remove('detach'), 440);
+
+  const host = svg.getBoundingClientRect();
+  const ra = pa.getBoundingClientRect(), rb = pb.getBoundingClientRect();
+  const x1 = ra.left - host.left + ra.width / 2, y1 = ra.bottom - host.top;
+  const x2 = rb.left - host.left + rb.width / 2,   y2 = rb.top - host.top;
+  const dy = Math.max(16, (y2 - y1) / 2);
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M' + x1 + ',' + y1 + ' C' + x1 + ',' + (y1 + dy) + ' ' + x2 + ',' + (y2 - dy) + ' ' + x2 + ',' + y2);
+  path.setAttribute('class', 'fk');
+  path.setAttribute('stroke', getComputedStyle(pb).color);
+  svg.appendChild(path);
+  setTimeout(() => path.remove(), 1400);
+}
+
+/* ═══════════ RENDER · MEMORIA + REGISTROS + CÓDIGO ═══════════ */
+function segHTML(label, right){
+  return '<div class="memseg">' + label + (right ? '<span class="sp">' + right + '</span>' : '') + '</div>';
+}
+
+function renderMem(id){
+  const p = SYS.procs[id];
+  $('pvMemWho').textContent = p ? (id + ' · ' + p.pid + ' · ' + p.func) : '—';
+  if (!p) return;
+
+  const rows = p.frame.map(f =>
+    '<div class="mrow"><span class="ma">' + f.n + '</span><span class="mv a">' + f.v + '</span></div>'
+  ).join('');
+
+  const cow = p.cowWith.length
+    ? '<span class="cow' + (SYS.cowSpread ? ' spread' : '') + '">⇄ COW con ' + p.cowWith.join(', ') + (SYS.cowSpread ? ' · separada' : ' · nunca se separó') + '</span>'
+    : '<span class="cow" style="background:#1a1330;color:#a78bfa;border-color:#4c1d95">aislado</span>';
+
+  const roStr = p.word ? ('"' + p.word + '" en .rodata') : '— sin literal propio —';
+
+  $('pvMem').innerHTML =
+    segHTML('stack ↓', 'RSP') +
+    (rows ? rows + '<div class="memseg" style="background:#080d18">&nbsp;</div>' : '<div class="mrow"><span class="ma">—</span><span class="mv">frame vacío</span></div>') +
+    segHTML('.rodata', 'read-only') +
+    '<div class="mrow"><span class="ma">literal</span><span class="mv p">' + roStr + '</span></div>' +
+    segHTML('heap', cow) +
+    '<div class="mrow hi"><span class="ma">page tables</span><span class="mv">COW · 6 regiones · ' +
+      (SYS.cowSpread ? 'parcialmente separadas' : 'compartidas con ' + (p.cowWith.join(', ') || '—')) + '</span></div>' +
+    segHTML('.data / .bss', 'stdout → fd 1') +
+    '<div class="mrow"><span class="ma">RDI</span><span class="mv">fd 1  (heredado en fork)</span></div>' +
+    segHTML('.text', 'RIP') +
+    '<div class="mrow hi"><span class="ma">code</span><span class="mv p">L' + p.line +
+      '  ·  0x' + (0x401100 + p.line * 0x11).toString(16).toUpperCase() + '</span></div>';
+
+  /* registros */
+  const rg = p.regs || {};
+  const R = [
+    ['RIP', rg.RIP || ('0x' + (0x401100 + p.line * 0x11).toString(16).toUpperCase()), true],
+    ['RAX', rg.RAX || '0', true],
+    ['RSP', rg.RSP || '0x7FFD' + p.pid + '0', false],
+    ['RBP', rg.RBP || '0x7FFD' + p.pid + '8', false],
+    ['RDI', rg.RDI || '1', false],
+    ['FLAGS', rg.FLAGS || 'Z', false]
+  ];
+  $('pvRegs').innerHTML = R.map(([n, v, now]) =>
+    '<div class="reg' + (now ? ' now' : '') + '"><b>' + n + '</b><span>' + v + '</span></div>'
+  ).join('');
+}
+
+function renderCode(){
+  const st = CUR;
+  const p = SYS.procs[CUR.p];
+  const hi = st.line;
+  const lines = SRC.split('\n');
+  let out = '';
+  lines.forEach((l, i) => {
+    const n = i + 1;
+    const on = n === hi;
+    const isFn = /^void |^int main/.test(l);
+    const inChild = p && p.func === 'ejecutar_nodo' && n >= 8 && n <= 22;
+    const tone = p ? p.cls : 0;
+    const hiCls = tone === 1 ? 'onp' : tone === 2 ? 'onc' : tone === 3 ? 'onl' : 'on';
+    let cls = 'ln';
+    if (on) cls += ' ' + hiCls;
+    else if (inChild && p) cls += tone === 2 ? ' onc' : tone === 1 ? ' onp' : tone === 3 ? ' onl' : '';
+    else if (isFn) cls += ' fn';
+    out += '<span class="' + cls + '" data-n="' + n + '" id="l' + n + '">' + esc(l) + '</span>';
+  });
+  $('pvCode').innerHTML = out + '<span class="rip" id="pvRip"></span>';
+  const rip = $('pvRip');
+  const target = hi ? $('l' + hi) : null;
+  if (rip && target){
+    rip.style.transform = 'translateY(' + target.offsetTop + 'px)';
+    rip.className = 'rip on' + (p ? ' c' + p.cls : '');
+  }
+  $('pvCodeWho').textContent = CUR.p + (p ? ' · ' + p.func : '');
+}
+
+function esc(s){
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* ═══════════ RENDER · KERNEL ═══════════ */
+function renderKT(){
+  const rows = SYS.order.filter(id => SYS.procs[id].reaped === null);
+  let h = '<colgroup><col><col class="c1"><col class="c2"><col class="c3"><col><col class="c5"></colgroup>' +
+          '<thead><tr><th>PID</th><th>PPID</th><th>S</th><th>RIP</th><th>canal</th></tr></thead><tbody>';
+  rows.forEach(id => {
+    const p = SYS.procs[id];
+    const me = id === CUR.p ? ' class="me"' : (p.state === 'Z' ? ' class="z"' : '');
+    h += '<tr' + me + ' data-k="' + id + '">' +
+      '<td>' + p.pid + '</td><td>' + (p.ppid || 0) + '</td>' +
+      '<td class="st ' + p.state + '">' + p.state + '</td>' +
+      '<td>' + (p.state === 'Z' || p.state === 'X' ? '—' : '0x' + (0x401100 + p.line * 0x11).toString(16).toUpperCase()) + '</td>' +
+      '<td>' + (p.chan || '—') + '</td></tr>';
+  });
+  h += '</tbody>';
+  $('pvKT').innerHTML = h;
+}
+
+function renderSyscall(step){
+  const box = $('pvSy');
+  /* limpios */
+  box.querySelectorAll('.syit').forEach(e => e.remove());
+  const s = step.seg;
+  if (!s) return;
+  const k = step.k;
+  const u = document.createElement('div');
+  u.className = 'syit u' + (k === 'trap' ? ' trap' : '');
+  u.innerHTML = '<span>' + (s.u || '·') + '</span>';
+  const v = document.createElement('div');
+  v.className = 'syit k';
+  v.innerHTML = '<span>' + (s.k || '·') + '</span>' +
+    '<span class="ar">' + (k === 'trap' ? 'TRAP' : k === 'kern' ? 'en kernel' : 'user') + '</span>';
+  box.appendChild(u); box.appendChild(v);
+  if (k === 'trap'){
+    box.classList.add('hit', 'flash');
+    setTimeout(() => box.classList.remove('flash'), 620);
+  }
+}
+
+/* ═══════════ RENDER · CINTA + BUFFERS ═══════════ */
+let tapeShown = 0;
+
+function renderTape(step, jump){
+  const host = $('pvTape');
+  /* rebuild si retrocedimos */
+  if (jump || SYS.tape.length < tapeShown){
+    host.innerHTML = '';
+    tapeShown = 0;
+  }
+  for (; tapeShown < SYS.tape.length; tapeShown++){
+    const w = SYS.tape[tapeShown];
+    const s = document.createElement('span');
+    s.className = 'tok out';
+    /* el \n de "Lucas\n" se dibuja como ⏎: el único salto real del programa */
+    s.textContent = w.replace(/\n/g, ' ⏎');
+    if (step && step.w === w) s.classList.add('inb');
+    host.appendChild(s);
+  }
+  $('pvTapeN').textContent = SYS.tape.length + ' palabras';
+
+  /* buffers de stdio */
+  const live = SYS.order.filter(id => SYS.procs[id].reaped === null);
+  $('pvBufs').innerHTML = live.map(id => {
+    const p = SYS.procs[id];
+    const has = p.buf.length > 0;
+    return '<div class="buf' + (has ? ' has' : '') + '"><b>' + p.id + '</b>' +
+      (has ? p.buf.join('') : '·') + '</div>';
+  }).join('');
+}
+
+/* ═══════════ RENDER · GANTT ═══════════ */
+const TOTAL_STEPS = () => TRAZA.length;
+
+function renderGantt(){
+  const host = $('pvGantt');
+  const total = TOTAL_STEPS() || 1;
+  const now = IDX;
+  host.innerHTML = SYS.order.map(id => {
+    const p = SYS.procs[id];
+    const a = Math.min(p.born, now) / total * 100;
+    const b = p.died !== null ? Math.min(p.died, now) : now;
+    const end = b / total * 100;
+    const w = Math.max(0.7, end - a);
+    const zomb = p.died !== null && p.reaped === null && now >= p.died;
+    const dead = p.state === 'X' || p.reaped !== null;
+    return '<div class="gr"><span class="gname">' + p.id + '</span><span class="gtrack">' +
+      '<span class="gbar' + (p.born === now ? ' in' : '') + '" style="left:' + a.toFixed(2) + '%;width:' + w.toFixed(2) +
+      '%;background:' + CLSC[p.cls] + (dead ? ';opacity:.28' : '') + '"></span>' +
+      (zomb ? '<span class="gz" style="left:' + (end - 0.8).toFixed(2) + '%"></span>' : '') +
+      '</span></div>';
+  }).join('');
+}
+
+/* ═══════════ RENDER · FX + CABECERA ═══════════ */
+function renderFx(step){
+  const box = $('pvFx');
+  box.className = 'fx new';
+  box.classList.toggle('warn', step.k === 'trap');
+  box.querySelector('.k').textContent = step.k === 'trap' ? '⚡ TRAP' : step.k === 'kern' ? '⚙ kernel' : '▪ cpu';
+  $('pvFxTxt').textContent = typeof step.fx === 'function' ? step.fx(SYS) : step.fx;
+  setTimeout(() => box.classList.remove('new'), 460);
+  if ($('pvDetBox').style.display !== 'none') $('pvDetTxt').textContent = step.det || '(sin detalle)';
+}
+
+/* ═══════════ ORQUESTADOR ═══════════ */
+let TRAZA = [];
+let IDX = 0;
+let CUR = null;
+let timer = null;
+let OPTS = { roll:false, cow:false, bufHack:false, det:false };
+
+function rebuild(){
+  stop();
+  SYS.cowSpread = OPTS.cow;
+  TRAZA = buildTrace({ roll:OPTS.roll, bufHack:OPTS.bufHack });
+  IDX = 0;
+  paint(true);
+}
+
+function paint(jump){
+  if (!TRAZA.length) return;
+  IDX = Math.max(0, Math.min(TRAZA.length - 1, IDX));
+  CUR = TRAZA[IDX];
+  SYS.step = IDX;
+
+  const prevOrder = SYS.order.slice();
+  if (CUR.fn) CUR.fn(SYS);
+  SYS.setLine(CUR.p, CUR.line);
+  SYS.focus = CUR.p;
+
+  renderScn(CUR, { order:prevOrder });
+  renderMem(CUR.p);
+  renderCode();
+  renderKT();
+  renderSyscall(CUR);
+  renderTape(CUR, jump);
+  renderGantt();
+  renderFx(CUR);
+
+  $('pvStep').textContent = (IDX + 1) + ' / ' + TRAZA.length;
+  $('pvPhase').textContent = CUR.phase || '—';
+  $('pvFill').style.width = ((IDX + 1) / TRAZA.length * 100).toFixed(1) + '%';
+
+  /* el código se scrollea a la línea activa */
+  const tgt = $('l' + CUR.line);
+  if (tgt){
+    const box = tgt.closest('.pnl-b');
+    if (box){
+      const top = tgt.offsetTop;
+      if (top < box.scrollTop || top > box.scrollTop + box.clientHeight - 40){
+        box.scrollTop = Math.max(0, top - box.clientHeight / 2.6);
+      }
+    }
+  }
+}
+
+function stepBy(d){
+  stop();
+  IDX += d;
+  paint(d < 0);
+}
+
+function play(){
+  if (timer) return stop();
+  $('pvPlay').textContent = '❚❚ Pausa';
+  timer = setInterval(() => {
+    if (IDX >= TRAZA.length - 1){ finish(); return; }
+    IDX++;
+    paint(false);
+  }, Number($('pvSpeed').value));
+}
+
+function finish(){
+  stop();
+  /* ¿la frase salió en el orden esperado? */
+  const CANON = 'Hola Buenos dias tenga usted. y malos Hasta luego Lucas';
+  const got = SYS.tape.join('').replace(/\n/g, ' ').trim();
+  const scrambled = got !== CANON;
+  if (scrambled){
+    /* marcar los tokens fuera de lugar */
+    const words = SYS.tape.join('').split(/\s+/).filter(Boolean);
+    const expect = CANON.split(' ');
+    let j = 0;
+    [...$('pvTape').children].forEach(el => {
+      const w = el.textContent.trim();
+      if (w && w !== expect[j]) el.classList.add('scram');
+      if (w) j++;
+    });
+  }
+  $('pvFx').className = 'fx warn';
+  $('pvFx').querySelector('.k').textContent = scrambled ? '⚠' : '✓';
+  $('pvFxTxt').textContent = (scrambled ? 'orden NO determinista: ' : 'orden esperado: ') + '"' + got + '"';
+}
+
+function stop(){
+  if (timer){ clearInterval(timer); timer = null; }
+  $('pvPlay').textContent = '▶ Reproducir';
+}
+
+/* ─── controles ─── */
+$('pvPlay').addEventListener('click', play);
+$('pvNext').addEventListener('click', () => stepBy(1));
+$('pvPrev').addEventListener('click', () => stepBy(-1));
+$('pvReset').addEventListener('click', () => { stop(); tapeShownReset(); IDX = 0; paint(true); });
+function tapeShownReset(){ tapeShown = 0; $('pvTape').innerHTML = ''; }
+
+$('pvRoll').addEventListener('click', e => {
+  OPTS.roll = !OPTS.roll;
+  e.target.classList.toggle('on', OPTS.roll);
+  rebuild();
+});
+$('pvCow').addEventListener('click', e => {
+  OPTS.cow = !OPTS.cow;
+  e.target.classList.toggle('on', OPTS.cow);
+  SYS.cowSpread = OPTS.cow;
+  renderMem(CUR ? CUR.p : 'P0');
+});
+$('pvBuf').addEventListener('click', e => {
+  OPTS.bufHack = !OPTS.bufHack;
+  e.target.classList.toggle('on', OPTS.bufHack);
+  rebuild();
+});
+$('pvDet').addEventListener('click', e => {
+  OPTS.det = !OPTS.det;
+  e.target.classList.toggle('on', OPTS.det);
+  const box = $('pvDetBox');
+  box.style.display = OPTS.det ? 'block' : 'none';
+  if (OPTS.det && CUR) $('pvDetTxt').textContent = CUR.det || '(sin detalle)';
+});
+
+document.addEventListener('keydown', e => {
+  if (!TRAZA.length) return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.code === 'Space'){ e.preventDefault(); play(); }
+  else if (e.key === 'ArrowRight'){ stepBy(1); }
+  else if (e.key === 'ArrowLeft'){ stepBy(-1); }
+  else if (e.key === 'r' || e.key === 'R'){ $('pvRoll').click(); }
+});
+
+/* ─── init ─── */
+renderRows();
+scnB();
+window.addEventListener('resize', () => { if (CUR) drawForkWire(CUR); });
+rebuild();
+
+//@P10@
+})();
+</script>
+</body>
+</html>
